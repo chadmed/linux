@@ -396,7 +396,7 @@ int snd_soc_put_volsw_sx(struct snd_kcontrol *kcontrol,
 }
 EXPORT_SYMBOL_GPL(snd_soc_put_volsw_sx);
 
-static int snd_soc_clip_to_platform_max(struct snd_kcontrol *kctl)
+static int soc_clip_to_platform_max(struct snd_kcontrol *kctl)
 {
 	struct soc_mixer_control *mc = (struct soc_mixer_control *)kctl->private_value;
 	struct snd_ctl_elem_value uctl;
@@ -432,7 +432,7 @@ static int soc_limit_volume(struct snd_kcontrol *kctl, int max)
 
 	mc->platform_max = max;
 
-	return snd_soc_clip_to_platform_max(kctl);
+	return soc_clip_to_platform_max(kctl);
 }
 
 /**
