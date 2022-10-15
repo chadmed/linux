@@ -337,7 +337,10 @@ static arm_lpae_iopte arm_lpae_install_table(arm_lpae_iopte *table,
 	 */
 	dma_wmb();
 
-	old = cmpxchg64_relaxed(ptep, curr, new);
+	old = READ_ONCE(*ptep);
+	if (old == curr)
+		WRITE_ONCE(*ptep, new);
+// 	old = cmpxchg64_relaxed(ptep, curr, new);
 
 	if (cfg->coherent_walk || (old & ARM_LPAE_PTE_SW_SYNC))
 		return old;
