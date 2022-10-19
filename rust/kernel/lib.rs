@@ -72,6 +72,7 @@ pub mod security;
 pub mod soc;
 pub mod str;
 pub mod task;
+pub mod time;
 pub mod workqueue;
 
 pub mod linked_list;
