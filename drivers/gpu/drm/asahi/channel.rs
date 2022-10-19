@@ -339,7 +339,7 @@ impl StatsChannel::ver {
             let tag = unsafe { msg.raw.0 };
             match tag {
                 0..=STATS_MAX::ver => {
-                    let msg = unsafe { msg.msg };
+                    //let msg = unsafe { msg.msg };
                     //pr_info!("Stats: {:?}", msg);
                 }
                 _ => {
