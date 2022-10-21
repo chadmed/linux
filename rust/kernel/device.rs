@@ -8,7 +8,7 @@
 use crate::{clk::Clk, error::from_kernel_err_ptr};
 
 use crate::{
-    bindings,
+    bindings, of,
     revocable::{Revocable, RevocableGuard},
     str::CStr,
     sync::{LockClassKey, NeedsLockClass, RevocableMutex, RevocableMutexGuard, UniqueRef},
@@ -68,6 +68,13 @@ pub unsafe trait RawDevice {
 
         // SAFETY: Clock is initialized with valid pointer returned from `bindings::clk_get` call.
         unsafe { Ok(Clk::new(clk_ptr)) }
+    }
+
+    /// Gets the OpenFirmware node attached to this device
+    fn of_node(&self) -> Option<of::Node> {
+        let ptr = self.raw_device();
+
+        unsafe { of::Node::get_from_raw((*ptr).of_node) }
     }
 
     /// Prints an emergency-level message (level 0) prefixed with device information.

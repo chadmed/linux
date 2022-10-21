@@ -685,6 +685,12 @@ struct device_node *rust_helper_of_parse_phandle(const struct device_node *np,
 }
 EXPORT_SYMBOL_GPL(rust_helper_of_parse_phandle);
 
+bool rust_helper_of_node_is_root(const struct device_node *np)
+{
+	return of_node_is_root(np);
+}
+EXPORT_SYMBOL_GPL(rust_helper_of_node_is_root);
+
 resource_size_t rust_helper_resource_size(const struct resource *res)
 {
 	return resource_size(res);
