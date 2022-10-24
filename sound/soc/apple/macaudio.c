@@ -61,6 +61,7 @@ struct macaudio_snd_data {
 		bool is_speakers;
 		bool is_headphones;
 		unsigned int tdm_mask;
+		unsigned int spk_codecs;
 	} *link_props;
 
 	unsigned int speaker_nchans_array[2];
@@ -329,6 +330,9 @@ static int macaudio_parse_of(struct macaudio_snd_data *ma)
 			goto err_free;
 		}
 
+		if (speakers)
+			ma->link_props->spk_codecs = num_codecs
+
 		if (num_codecs % num_bes != 0) {
 			dev_err(card->dev, "bad combination of CODEC (%d) and CPU (%d) number at %pOF\n",
 				num_codecs, num_bes, np);
@@ -455,6 +459,44 @@ static int macaudio_dpcm_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int macaudio_fe_startup(struct snd_pcm_substream *substream)
+{
+
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct macaudio_snd_data *ma = snd_soc_card_get_drvdata(rtd->card);
+	struct snd_soc_pcm_runtime *backend;
+	struct snd_soc_dpcm *dpcm;
+	int nchans, ret;
+
+	nchans = ma->link_props->spk_codecs;
+
+	/*
+	 * Check to make sure BE is ready
+	 */
+	if (!rtd->dai_link->num_codecs) {
+		return -EBUSY;
+	}
+
+	for_each_dpcm_be(rtd, substream->stream, dpcm) {
+		backend = dpcm->be;
+
+		if (backend->dai_link->num_codecs > 2) {
+			/*
+			 * Returns 1 if successful, 0 if nothing changed
+			 */
+			ret = snd_pcm_hw_constraint_single(substream->runtime,
+							SNDRV_PCM_HW_PARAM_CHANNELS, nchans);
+
+			if (ret != 1 && ret != 0) {
+				dev_err(rtd->dev, "Failed to constrain FE %d! %d", rtd->dai_link->id, ret);
+				return ret;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int macaudio_fe_hw_params(struct snd_pcm_substream *substream,
 				   struct snd_pcm_hw_params *params)
 {
@@ -495,6 +537,7 @@ static void macaudio_dpcm_shutdown(struct snd_pcm_substream *substream)
 }
 
 static const struct snd_soc_ops macaudio_fe_ops = {
+	.startup	= macaudio_fe_startup,
 	.shutdown	= macaudio_dpcm_shutdown,
 	.hw_params	= macaudio_fe_hw_params,
 };
