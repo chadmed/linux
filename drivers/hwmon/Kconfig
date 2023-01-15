@@ -344,8 +344,8 @@ config SENSORS_FAM15H_POWER
 	  This driver can also be built as a module. If so, the module
 	  will be called fam15h_power.
 
-config SENSORS_APPLESMC
-	tristate "Apple SMC (Motion sensor, light sensor, keyboard backlight)"
+config SENSORS_APPLESMC_X86
+	tristate "Apple SMC for Intel Macs"
 	depends on INPUT && X86
 	select NEW_LEDS
 	select LEDS_CLASS
@@ -355,8 +355,8 @@ config SENSORS_APPLESMC
 	  Sensor), light sensors, temperature sensors, keyboard backlight
 	  control and fan control.
 
-	  Only Intel-based Apple's computers are supported (MacBook Pro,
-	  MacBook, MacMini).
+	  This driver is only for Intel (x86) Macs. Apple Silicon Macs
+	  (M1, M2, etc) are not supported by this driver.
 
 	  Data from the different sensors, keyboard backlight control and fan
 	  control are accessible via sysfs.
@@ -364,8 +364,11 @@ config SENSORS_APPLESMC
 	  This driver also provides an absolute input class device, allowing
 	  the laptop to act as a pinball machine-esque joystick.
 
-	  Say Y here if you have an applicable laptop and want to experience
+	  Say Y here if you have an Intel Mac and want to experience
 	  the awesome power of applesmc.
+
+	  This driver can also be built as a module. If so, the module will
+	  be called applesmc-intel.
 
 config SENSORS_ARM_SCMI
 	tristate "ARM SCMI Sensors"

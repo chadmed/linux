@@ -705,7 +705,7 @@ static const struct dev_pm_ops applesmc_pm_ops = {
 static struct platform_driver applesmc_driver = {
 	.probe = applesmc_probe,
 	.driver	= {
-		.name = "applesmc",
+		.name = "applesmc-intel",
 		.pm = &applesmc_pm_ops,
 	},
 };
@@ -1193,7 +1193,7 @@ static int applesmc_create_accelerometer(void)
 	applesmc_calibrate();
 
 	/* initialize the input device */
-	applesmc_idev->name = "applesmc";
+	applesmc_idev->name = "applesmc-intel";
 	applesmc_idev->id.bustype = BUS_HOST;
 	applesmc_idev->dev.parent = &pdev->dev;
 	input_set_abs_params(applesmc_idev, ABS_X,
@@ -1317,7 +1317,7 @@ static int __init applesmc_init(void)
 	}
 
 	if (!request_region(APPLESMC_DATA_PORT, APPLESMC_NR_PORTS,
-								"applesmc")) {
+								"applesmc-intel")) {
 		ret = -ENXIO;
 		goto out;
 	}
@@ -1326,7 +1326,7 @@ static int __init applesmc_init(void)
 	if (ret)
 		goto out_region;
 
-	pdev = platform_device_register_simple("applesmc", APPLESMC_DATA_PORT,
+	pdev = platform_device_register_simple("applesmc-intel", APPLESMC_DATA_PORT,
 					       NULL, 0);
 	if (IS_ERR(pdev)) {
 		ret = PTR_ERR(pdev);
@@ -1414,6 +1414,6 @@ module_init(applesmc_init);
 module_exit(applesmc_exit);
 
 MODULE_AUTHOR("Nicolas Boichat");
-MODULE_DESCRIPTION("Apple SMC");
+MODULE_DESCRIPTION("Apple SMC (Intel)");
 MODULE_LICENSE("GPL v2");
 MODULE_DEVICE_TABLE(dmi, applesmc_whitelist);
