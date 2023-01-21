@@ -158,6 +158,19 @@ int apple_smc_get_key_by_index(struct apple_smc *smc, int index, smc_key *key)
 }
 EXPORT_SYMBOL(apple_smc_get_key_by_index);
 
+
+const char apple_smc_get_key_name(struct apple_smc *smc, smc_key key)
+{
+	name[0] = (char)((key & 0xFF000000) >> 24);
+	name[1] = (char)((key & 0x00FF0000) >> 16);
+	name[2] = (char)((key & 0x0000FF00) >> 8);
+	name[3] = (char)(key & 0x000000FF);
+	name[4] = '\0';
+
+	return name;
+}
+EXPORT_SYMBOL(apple_smc_get_key_name_by_index);
+
 int apple_smc_get_key_info(struct apple_smc *smc, smc_key key, struct apple_smc_key_info *info)
 {
 	int ret;

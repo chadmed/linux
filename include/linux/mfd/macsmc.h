@@ -34,6 +34,7 @@ int apple_smc_get_key_count(struct apple_smc *smc);
 int apple_smc_find_first_key_index(struct apple_smc *smc, smc_key key);
 int apple_smc_get_key_by_index(struct apple_smc *smc, int index, smc_key *key);
 int apple_smc_get_key_info(struct apple_smc *smc, smc_key key, struct apple_smc_key_info *info);
+const char apple_smc_get_key_name(struct apple_smc *smc, smc_key *key);
 
 static inline bool apple_smc_key_exists(struct apple_smc *smc, smc_key key)
 {
