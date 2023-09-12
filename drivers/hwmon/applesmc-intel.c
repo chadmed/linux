@@ -705,7 +705,7 @@ static const struct dev_pm_ops applesmc_pm_ops = {
 static struct platform_driver applesmc_driver = {
 	.probe = applesmc_probe,
 	.driver	= {
-		.name = "applesmc",
+		.name = "applesmc-intel",
 		.pm = &applesmc_pm_ops,
 	},
 };
