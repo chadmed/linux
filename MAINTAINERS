@@ -1521,6 +1521,13 @@ L:	linux-pci@vger.kernel.org
 S:	Maintained
 F:	drivers/pci/controller/pcie-apple.c
 
+APPLE SILICON HWMON DRIVER
+M:	James Calligeros <jcalligeros99@gmail.com>
+L:	asahi@lists.linux.dev
+L:	linux-hwmon@vger.kernel.org
+S:	Maintained
+F:	drivers/hwmon/applesmc-arm.c
+
 APPLE SMC DRIVER (INTEL MACS)
 M:	Henrik Rydberg <rydberg@bitmath.org>
 L:	linux-hwmon@vger.kernel.org
