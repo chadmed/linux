@@ -342,7 +342,7 @@ static void macsmc_hwmon_populate_info(struct macsmc_hwmon *hwmon,
 		info[i] = (struct hwmon_channel_info *)(info[i - 1]->config + j);
 		info[i]->type = hwmon_curr;
 		info[i]->config = (u32 *)(info[i] + 1);
-		macsmc_hwmon_populate_configs((u32 *)info[i]->config, hwmon->num_volt,
+		macsmc_hwmon_populate_configs((u32 *)info[i]->config, hwmon->num_curr,
 					(HWMON_C_INPUT | HWMON_C_LABEL));
 		j = hwmon->num_curr + 1;
 	}
@@ -458,7 +458,7 @@ static int macsmc_hwmon_probe(struct platform_device *pdev)
 	if (hwmon->num_curr) {
 		info_sz += (sizeof(struct hwmon_channel_info *) +
 				sizeof(struct hwmon_channel_info) +
-				(sizeof(u32) * (hwmon->num_volt + 1)));
+				(sizeof(u32) * (hwmon->num_curr + 1)));
 		n_chans += 1;
 	}
 
