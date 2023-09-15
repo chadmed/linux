@@ -332,7 +332,7 @@ static void macsmc_hwmon_populate_info(struct macsmc_hwmon *hwmon,
 		info[i] = (struct hwmon_channel_info *)(info[i - 1]->config + j);
 		info[i]->type = hwmon_in;
 		info[i]->config = (u32 *)(info[i] + 1);
-		macsmc_hwmon_populate_configs((u32 *)info[i]->config, hwmon->num_volt,
+		macsmc_hwmon_populate_configs((u32 *)info[i]->config, hwmon->num_curr,
 					(HWMON_I_INPUT | HWMON_I_LABEL));
 		j = hwmon->num_volt + 1;
 	}
