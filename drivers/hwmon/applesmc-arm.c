@@ -236,30 +236,41 @@ static int macsmc_hwmon_populate_sensors(struct device *dev,
 		ret = of_property_read_string(key_node, "apple,key-id", &key);
 		if (ret) {
 			dev_err(dev, "Could not find apple,key-id for node %d\n", i);
-			return -EINVAL;
+			continue;
 		}
 		(*sensors)[i].macsmc_key = _SMC_KEY(key);
 
 		key_info = devm_kzalloc(dev, sizeof(struct apple_smc_key_info), GFP_KERNEL);
 		if (!key_info)
-			return -ENOMEM;
+			continue;
 		(*sensors)[i].macsmc_key_info = key_info;
 
 		ret = apple_smc_get_key_info(smc, _SMC_KEY(key), (*sensors)[i].macsmc_key_info);
 		if (ret) {
 			dev_err(dev, "Failed to retrieve key info for %s\n", key);
-			return -EINVAL;
+			continue;
 		}
 
 		ret = of_property_read_string(key_node, "apple,key-desc",
 					      &label);
 		if (ret) {
 			dev_err(dev, "Could not find apple,key-desc for node %d\n", i);
-			return -EINVAL;
+			continue;
 		}
 		strncpy((*sensors)[i].label, label, strlen(label));
 
 		i += 1;
+	}
+
+
+	/*
+	 * The SMC firmware interface is unstable and we may lose some keys from time to time.
+	 * Handle this gracefully by only considering the number of *parsed* keys
+	 */
+	*num_keys = i;
+	if (!num_keys) {
+		dev_err(dev, "No valid keys found in %s\n", sensor_node);
+		return -ENOTSUPP;
 	}
 
 	of_node_put(sensors_node);
