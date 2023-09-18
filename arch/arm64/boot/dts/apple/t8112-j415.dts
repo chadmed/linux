@@ -282,35 +282,35 @@
 			};
 			temp07 {
 				apple,key-id = "Tp01";
-				apple,key-desc = "Blizzard 1 Core Temp"
+				apple,key-desc = "Blizzard 1 Core Temp";
 			};
 			temp08 {
 				apple,key-id = "Tp09";
-				apple,key-desc = "Blizzard 2 Core Temp"
+				apple,key-desc = "Blizzard 2 Core Temp";
 			};
 			temp09 {
 				apple,key-id = "Tp0f";
-				apple,key-desc = "Blizzard 3 Core Temp"
+				apple,key-desc = "Blizzard 3 Core Temp";
 			};
 			temp10 {
 				apple,key-id = "Tp0n";
-				apple,key-desc = "Blizzard 4 Core Temp"
+				apple,key-desc = "Blizzard 4 Core Temp";
 			};
 			temp11 {
 				apple,key-id = "Tp05";
-				apple,key-desc = "Avalanche 1 Core Temp"
+				apple,key-desc = "Avalanche 1 Core Temp";
 			};
 			temp12 {
 				apple,key-id = "Tp0d";
-				apple,key-desc = "Avalanche 2 Core Temp"
+				apple,key-desc = "Avalanche 2 Core Temp";
 			};
 			temp13 {
 				apple,key-id = "Tp0j";
-				apple,key-desc = "Avalanche 3 Core Temp"
+				apple,key-desc = "Avalanche 3 Core Temp";
 			};
 			temp14 {
 				apple,key-id = "Tp0r";
-				apple,key-desc = "Avalanche 4 Core Temp"
+				apple,key-desc = "Avalanche 4 Core Temp";
 			};
 		};
 
