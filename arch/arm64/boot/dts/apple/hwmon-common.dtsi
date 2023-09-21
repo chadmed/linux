@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: GPL-2.0+ OR MIT
+/*
+ * macsmc-hwmon sensors expected on all systems
+ *
+ * Copyright The Asahi Linux Contributors
+ */
+
+&smc {
+	macsmc-hwmon {
+		apple,power-keys {
+			power-PSTR {
+				apple,key-id = "PSTR";
+				apple,key-desc = "Total System Power";
+			};
+			power-PDTR {
+				apple,key-id = "PDTR";
+				apple,key-desc = "AC Input Power";
+			};
+			power-PMVR {
+				apple,key-id = "PMVR";
+				apple,key-desc = "3.8 V Rail Power";
+			};
+			power-PC0C {
+				apple,key-id = "PC0C";
+				apple,key-desc = "CPU Core Power";
+			};
+			power-PCTR {
+				apple,key-id = "PCTR";
+				apple,key-desc = "CPU Complex Power";
+			};
+			power-PG0R {
+				apple,key-id = "PG0R";
+				apple,key-desc = "GPU Complex Power";
+			};
+		};
+		apple,temp-keys {
+			temp-TH0x {
+				apple,key-id = "TH0x";
+				apple,key-desc = "NAND Flash Temperature";
+			};
+		};
+		apple,volt-keys {
+			volt-VD0R {
+				apple,key-id = "VD0R";
+				apple,key-desc = "AC Input Voltage";
+			};
+			volt-VP0R {
+				apple,key-id = "VP0R";
+				apple,key-desc = "12 V Rail Voltage";
+			};
+			volt-VR3R {
+				apple,key-id = "VR3R";
+				apple,key-desc = "3.3 V Rail Voltage";
+			};
+			volt-VV1S {
+				apple,key-id = "VV1S";
+				apple,key-desc = "5 V Rail Voltage";
+			};
+			volt-VM0R {
+				apple,key-id = "VM0R";
+				apple,key-desc = "DRAM Voltage";
+			};
+		};
+		apple,current-keys {
+			current-IC0R {
+				apple,key-id = "IC0R";
+				apple,key-desc = "CPU VRM High Side Current";
+			};
+			current-IG0R {
+				apple,key-id = "IG0R";
+				apple,key-desc = "GPU VRM High Side Current";
+			};
+			current-ID0R {
+				apple,key-id = "ID0R";
+				apple,key-desc = "AC Input Current";
+			};
+		};
+	};
+};

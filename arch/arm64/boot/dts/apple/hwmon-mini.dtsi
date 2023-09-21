@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0+ OR MIT
+/*
+ * macsmc-hwmon sensors common to the Mac mini desktop
+ * models, but not the Studio or Pro.
+ *
+ * Copyright The Asahi Linux Contributors
+ */
+
+&smc {
+	macsmc-hwmon {
+		apple,temp-keys {
+			temp-TW0P {
+				apple,key-id = "TW0P";
+				apple,key-desc = "WiFi/BT Module Temp";
+			};
+		};
+	};
+};

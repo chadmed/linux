@@ -1,0 +1,71 @@
+// SPDX-License-Identifier: GPL-2.0+ OR MIT
+/*
+ * t602x specific macsmc-hwmon sensors
+ *
+ * Copyright The Asahi Linux Contributors
+ */
+
+ #include "hwmon-common.dtsi"
+
+&smc {
+	macsmc-hwmon {
+		apple,temp-keys {
+			temp-Tp1h {
+				apple,key-id = "Tp1h";
+				apple,key-desc = "Efficiency Core 1 Temp";
+			};
+			temp-Tp1t {
+				apple,key-id = "Tp1t";
+				apple,key-desc = "Efficiency Core 2 Temp";
+			};
+			temp-Tp1p {
+				apple,key-id = "Tp1p";
+				apple,key-desc = "Efficiency Core 3 Temp";
+			};
+			temp-Tp1l {
+				apple,key-id = "Tp1l";
+				apple,key-desc = "Efficiency Core 4 Temp";
+			};
+			temp-Tp01 {
+				apple,key-id = "Tp01";
+				apple,key-desc = "Performance Core 1 Temp";
+			};
+			temp-Tp05 {
+				apple,key-id = "Tp05";
+				apple,key-desc = "Performance Core 2 Temp";
+			};
+			temp-Tp09 {
+				apple,key-id = "Tp09";
+				apple,key-desc = "Performance Core 3 Temp";
+			};
+			temp-Tp0D {
+				apple,key-id = "Tp0D";
+				apple,key-desc = "Performance Core 4 Temp";
+			};
+			temp-Tp0X {
+				apple,key-id = "Tp0X";
+				apple,key-desc = "Performance Core 5 Temp";
+			};
+			temp-Tp0b {
+				apple,key-id = "Tp0b";
+				apple,key-desc = "Performance Core 6 Temp";
+			};
+			temp-Tp0f {
+				apple,key-id = "Tp0f";
+				apple,key-desc = "Performance Core 7 Temp";
+			};
+			temp-Tp0j {
+				apple,key-id = "Tp0j";
+				apple,key-desc = "Performance Core 8 Temp";
+			};
+			temp-Tg0f {
+				apple,key-id = "Tg0f";
+				apple,key-desc = "GPU 1 Temp";
+			};
+			temp-Tg0j {
+				apple,key-id = "Tg0j";
+				apple,key-desc = "GPU 2 Temp";
+			};
+		};
+	};
+};
