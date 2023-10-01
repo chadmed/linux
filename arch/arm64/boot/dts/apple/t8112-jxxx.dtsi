@@ -174,4 +174,8 @@
 	clock-frequency = <900000000>;
 };
 
+
 #include "spi1-nvram.dtsi"
+
+#include "hwmon-t8112.dtsi"
+#include "hwmon-system.dtsi"
