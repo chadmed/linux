@@ -262,13 +262,25 @@
 };
 
 /* Audio */
+
+/* Virtual regulator representing the shared shutdown GPIO */
+/ {
+	speaker_sdz: fixed-regulator-sn012776-sdz {
+		compatible = "regulator-fixed";
+		regulator-name = "sn012776-sdz";
+		startup-delay-us = <5000>;
+		gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+};
+
 &i2c1 {
 	status = "okay";
 
 	speaker: codec@38 {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x38>;
-		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
 		ti,imon-slot-no = <0>;

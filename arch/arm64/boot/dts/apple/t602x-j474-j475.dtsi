@@ -63,8 +63,12 @@
 	pwren-gpios = <&smc_gpio 19 GPIO_ACTIVE_HIGH>;
 };
 
+/* Redefine GPIO for SDZ */
+&speaker_sdz: fixed-regulator-sn012776-sdz {
+	gpios = <&pinctrl_ap 57 GPIO_ACTIVE_HIGH>;
+}
+
 &speaker {
-	shutdown-gpios = <&pinctrl_ap 57 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 58 IRQ_TYPE_LEVEL_LOW>;
 };
 
