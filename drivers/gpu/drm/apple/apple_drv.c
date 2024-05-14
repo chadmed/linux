@@ -353,12 +353,18 @@ static int apple_probe_per_dcp(struct device *dev,
 		return PTR_ERR(planes[0]);
 
 
+	/* No one supports overlays-as-cursors yet... */
 	/* Set up our other planes */
-	for (i = 1; i < DCP_MAX_PLANES; i++) {
-		planes[i] = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_OVERLAY);
-		if (IS_ERR(planes[i]))
-			return PTR_ERR(planes[i]);
-	}
+	// for (i = 1; i < DCP_MAX_PLANES; i++) {
+	// 	planes[i] = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_OVERLAY);
+	// 	if (IS_ERR(planes[i]))
+	// 		return PTR_ERR(planes[i]);
+	// }
+	/* Get rid of this once at the _very_ least kwin supports overlay-as-cursor */
+	i = 1;
+	planes[i] = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_CURSOR);
+	if (IS_ERR(planes[i]))
+		return PTR_ERR(planes[i]);
 
 	/*
 	 * We need to pass a primary and cursor plane for userspace that
