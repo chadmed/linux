@@ -1308,7 +1308,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		 * having 4 surfaces, we can only blend two. Surface 0 is also
 		 * unusable on some machines, so ignore it.
 		 */
-		l = 2 - new_state->zpos;
+		l = 2 - new_state->normalized_zpos;
 
 		WARN_ON(l >= SWAP_SURFACES);
 

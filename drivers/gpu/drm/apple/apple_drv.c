@@ -20,6 +20,7 @@
 #include <drm/drm_aperture.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/drm_blend.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_fb_helper.h>
@@ -253,8 +254,19 @@ static const struct drm_crtc_funcs apple_crtc_funcs = {
 	.set_config             = drm_atomic_helper_set_config,
 };
 
+static int apple_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
+{
+	int ret;
+
+	ret = drm_atomic_normalize_zpos(dev, state);
+	if (ret)
+		return ret;
+
+	return drm_atomic_helper_check(dev, state);
+}
+
 static const struct drm_mode_config_funcs apple_mode_config_funcs = {
-	.atomic_check		= drm_atomic_helper_check,
+	.atomic_check		= apple_atomic_check,
 	.atomic_commit		= drm_atomic_helper_commit,
 	.fb_create		= drm_gem_fb_create,
 };
