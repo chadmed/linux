@@ -47,6 +47,14 @@
 
 #define MAX_COPROCESSORS 2
 
+/*
+ * Some compositors don't deal with rejected cursor plane swaps
+ * gracefully. Give users an option to disable them
+ */
+static bool disable_planes;
+module_param(disable_planes, bool, 0644);
+MODULE_PARM_DESC(disable_planes, "Disable hardware compositing");
+
 struct apple_drm_private {
 	struct drm_device drm;
 };
@@ -362,9 +370,13 @@ static int apple_probe_per_dcp(struct device *dev,
 	// }
 	/* Get rid of this once at the _very_ least kwin supports overlay-as-cursor */
 	i = 1;
-	planes[i] = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_CURSOR);
-	if (IS_ERR(planes[i]))
-		return PTR_ERR(planes[i]);
+	if (disable_planes)
+		planes[i] = NULL;
+	else {
+		planes[i] = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_CURSOR);
+		if (IS_ERR(planes[i]))
+			return PTR_ERR(planes[i]);
+	}
 
 	/*
 	 * We need to pass a primary and cursor plane for userspace that
