@@ -109,6 +109,26 @@ static int apple_plane_atomic_check(struct drm_plane *plane,
 	 */
 	if ((new_plane_state->crtc_x + 32) > crtc_state->mode.hdisplay ||
 	     (new_plane_state->crtc_y + 32) > crtc_state->mode.vdisplay) {
+		dev_err_once(state->dev->dev,
+			"Plane operation would have crashed DCP! Rejected!");
+		dev_err_once(state->dev->dev,
+			"DCP requires 32x32 of every plane to be within screen space.");
+		dev_err_once(state->dev->dev,
+			"Your compositor asked for a screen space area of [%d, %d].",
+			crtc_state->mode.hdisplay - new_plane_state->crtc_x,
+			crtc_state->mode.vdisplay - new_plane_state->crtc_y);
+		dev_err_once(state->dev->dev,
+			"This is not supported, and your compositor should have");
+		dev_err_once(state->dev->dev,
+			"switched to software compositing when this operation failed.");
+		dev_err_once(state->dev->dev,
+			"You should not have noticed this at all. If your screen");
+		dev_err_once(state->dev->dev,
+			"froze/hitched, or your compositor crashed, please report");
+		dev_err_once(state->dev->dev,
+			"this to the your compositor's developers. We will not");
+		dev_err_once(state->dev->dev,
+			"throw this error again until you next reboot.");
 		return -EINVAL;
 	}
 
