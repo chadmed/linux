@@ -36,7 +36,7 @@
 			};
 		};
 
-		apple,curr-keys {
+		apple,current-keys {
 			curr-ID0R {
 				apple,key-id = "ID0R";
 				apple,key-desc = "Charger Input Current";
