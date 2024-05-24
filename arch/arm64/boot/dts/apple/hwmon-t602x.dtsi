@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: GPL-2.0+ OR MIT
+/*
+ * t602x specific macsmc-hwmon sensors
+ *
+ * Copyright The Asahi Linux Contributors
+ */
+
+&smc {
+	macsmc-hwmon {
+		apple,temp-keys {
+			temp-Tp00 {
+				apple,key-id = "Tp00";
+				apple,key-desc = "Performance Core 1 Temp";
+			};
+			temp-Tp08 {
+				apple,key-id = "Tp08";
+				apple,key-desc = "Performance Core 2 Temp";
+			};
+			temp-Tp0e {
+				apple,key-id = "Tp0e";
+				apple,key-desc = "Performance Core 3 Temp";
+			};
+			/* no idea what monitored by this */
+			temp-Tp0a {
+				apple,key-id = "Tp0a";
+			};
+			temp-Tp0b {
+				apple,key-id = "Tp0b";
+			};
+			temp-Tp0c {
+				apple,key-id = "Tp0c";
+			};
+		};
+	};
+};
