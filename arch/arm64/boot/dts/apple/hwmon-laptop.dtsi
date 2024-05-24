@@ -23,8 +23,11 @@
 				apple,key-id = "TCHP";
 				apple,key-desc = "Charge Regulator Temp";
 			};
+			temp-TW0P {
+				apple,key-id = "TW0P";
+				apple,key-desc = "WiFi/BT Module Temp";
+			};
 		};
-
 		apple,volt-keys {
 			volt-SBAV {
 				apple,key-id = "SBAV";

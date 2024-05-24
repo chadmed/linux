@@ -21,12 +21,5 @@
 				apple,key-desc = "3.8V Power";
 			};
 		};
-
-		apple,temp-keys {
-			temp-TW0P {
-				apple,key-id = "TW0P";
-				apple,key-desc = "WiFi/BT Module Temp";
-			};
-		};
 	};
 };
