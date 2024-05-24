@@ -14,19 +14,19 @@
 			};
 			temp-Tp00 {
 				apple,key-id = "Tp00";
-				apple,key-desc = "CPU4 Temp1";
+				apple,key-desc = "Performance Core 1 Temp";
 			};
 			temp-Tp08 {
 				apple,key-id = "Tp08";
-				apple,key-desc = "CPU5 Temp1";
+				apple,key-desc = "Performance Core 2 Temp";
 			};
 			temp-Tp0e {
 				apple,key-id = "Tp0e";
-				apple,key-desc = "CPU6 Temp1";
+				apple,key-desc = "Performance Core 3 Temp";
 			};
 			temp-Tp0m {
 				apple,key-id = "Tp0m";
-				apple,key-desc = "CPU7 Temp1";
+				apple,key-desc = "Performance Core 4 Temp";
 			};
 			/* no idea what monitored by this */
 			temp-Tp0a {
