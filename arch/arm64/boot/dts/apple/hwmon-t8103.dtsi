@@ -16,33 +16,17 @@
 				apple,key-id = "Tp3z";
 				apple,key-desc = "CPU4 Core Temp1";
 			};
-			temp-Tp3b {
-				apple,key-id = "Tp3b";
-				apple,key-desc = "CPU4 Core Temp2";
-			};
 			temp-Tp4z {
 				apple,key-id = "Tp4z";
 				apple,key-desc = "CPU5 Core Temp1";
-			};
-			temp-Tp4b {
-				apple,key-id = "Tp4b";
-				apple,key-desc = "CPU5 Core Temp2";
 			};
 			temp-Tp7z {
 				apple,key-id = "Tp7z";
 				apple,key-desc = "CPU6 Core Temp1";
 			};
-			temp-Tp7b {
-				apple,key-id = "Tp7b";
-				apple,key-desc = "CPU6 Core Temp2";
-			};
 			temp-Tp8z {
 				apple,key-id = "Tp8z";
 				apple,key-desc = "CPU7 Core Temp1";
-			};
-			temp-Tp8b {
-				apple,key-id = "Tp8b";
-				apple,key-desc = "CPU7 Core Temp2";
 			};
 			/* no good idea about these except that close to the CPU */
 			temp-Tp2z {
