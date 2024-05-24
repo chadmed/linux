@@ -7,7 +7,7 @@
 
 &smc {
 	macsmc-hwmon {
-		apple,pwr-keys {
+		apple,power-keys {
 			power-PHPC {
 				apple,key-id = "PHPC";
 				apple,key-desc = "Heatpipe Power";
