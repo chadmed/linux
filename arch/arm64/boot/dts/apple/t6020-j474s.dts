@@ -106,3 +106,12 @@
 	/* Apple does not do this, but they probably should */
 	apple,perf-base-pstate = <3>;
 };
+
+&smc {
+	macsmc-hwmon {
+		apple,temp-keys {
+			apple,key-id = "TW0P";
+			apple,key-desc = "WiFi/BT Module Temp";
+		};
+	};
+};
