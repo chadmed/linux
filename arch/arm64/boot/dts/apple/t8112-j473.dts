@@ -193,3 +193,14 @@
 &gpu {
 	apple,perf-base-pstate = <3>;
 };
+
+&smc {
+	macsmc-hwmon {
+		apple,temp-keys {
+			temp-TW0P {
+				apple,key-id = "TW0P";
+				apple,key-desc = "WiFi/BT Module Temp";
+			};
+		};
+	};
+};
