@@ -189,4 +189,3 @@
 #include "spi1-nvram.dtsi"
 
 #include "hwmon-t8103.dtsi"
-#include "hwmon-system.dtsi"

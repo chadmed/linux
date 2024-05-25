@@ -5,6 +5,8 @@
  * Copyright The Asahi Linux Contributors
  */
 
+ #include "hwmon-common.dtsi"
+
 &smc {
 	macsmc-hwmon {
 		apple,temp-keys {

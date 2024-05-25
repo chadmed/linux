@@ -174,5 +174,3 @@
 		};
 	};
 };
-
-#include "hwmon-system.dtsi"

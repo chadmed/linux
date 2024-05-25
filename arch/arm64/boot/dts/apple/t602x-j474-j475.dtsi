@@ -67,5 +67,3 @@
 	reset-gpios = <&pinctrl_nub 8 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 59 IRQ_TYPE_LEVEL_LOW>;
 };
-
-#include "hwmon-system.dtsi"
