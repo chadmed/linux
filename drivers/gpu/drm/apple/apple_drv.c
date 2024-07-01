@@ -20,6 +20,7 @@
 #include <drm/drm_aperture.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/drm_blend.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_fb_helper.h>
@@ -364,10 +365,15 @@ static int apple_probe_per_dcp(struct device *dev,
 	struct apple_encoder *enc;
 	struct drm_plane *planes[DCP_MAX_PLANES];
 	int ret, i;
+	int immutable_zpos = 0;
 
 	planes[0] = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_PRIMARY);
 	if (IS_ERR(planes[0]))
 		return PTR_ERR(planes[0]);
+	ret = drm_plane_create_zpos_immutable_property(planes[0], immutable_zpos);
+	if (ret) {
+		return ret;
+	}
 
 
 	/* Set up our other planes */
@@ -375,6 +381,11 @@ static int apple_probe_per_dcp(struct device *dev,
 		planes[i] = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_OVERLAY);
 		if (IS_ERR(planes[i]))
 			return PTR_ERR(planes[i]);
+		immutable_zpos++;
+		ret = drm_plane_create_zpos_immutable_property(planes[i], immutable_zpos);
+		if (ret) {
+			return ret;
+		}
 	}
 
 	/*
