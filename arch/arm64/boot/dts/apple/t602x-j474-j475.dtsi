@@ -67,3 +67,9 @@
 	reset-gpios = <&pinctrl_nub 8 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 59 IRQ_TYPE_LEVEL_LOW>;
 };
+
+&smc {
+	/delete-node/ hwmon; /* Override j375 below */
+};
+
+#include "hwmon-t602x.dtsi"

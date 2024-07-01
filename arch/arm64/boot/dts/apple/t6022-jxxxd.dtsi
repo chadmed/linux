@@ -174,3 +174,5 @@
 		};
 	};
 };
+
+#include "hwmon-fan-dual.dtsi"
