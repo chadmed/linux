@@ -403,3 +403,6 @@
 #endif
 
 #include "spi1-nvram.dtsi"
+
+#include "hwmon-t600x.dtsi"
+#include "hwmon-fan-dual.dtsi"

@@ -520,3 +520,7 @@
 &isp {
 	apple,platform-id = <3>;
 };
+
+#include "hwmon-t600x.dtsi"
+#include "hwmon-laptop.dtsi"
+#include "hwmon-fan-dual.dtsi"
