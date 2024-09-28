@@ -840,6 +840,8 @@ static irqreturn_t cs42l84_irq_thread(int irq, void *data)
 				cs42l84->plug_state = CS42L84_PLUG;
 				dev_dbg(cs42l84->dev, "Plug event\n");
 
+				/* Give the user time to fully seat the plug */
+				msleep(1500);
 				cs42l84_detect_hs(cs42l84);
 
 				/*
