@@ -724,7 +724,7 @@ static void cs42l84_detect_hs(struct cs42l84_private *cs42l84)
 		CS42L84_MISC_DET_CTL_PDN_MIC_LVL_DET, 0);
 
 	/* TODO: Optimize */
-	msleep(100);
+	msleep(50);
 
 	/* Connect HSBIAS in CTIA wiring */
 	/* TODO: Should likely be subject of detection */
@@ -745,7 +745,7 @@ static void cs42l84_detect_hs(struct cs42l84_private *cs42l84)
 		FIELD_PREP(CS42L84_MISC_DET_CTL_DETECT_MODE, 3));
 
 	/* TODO: Optimize */
-	msleep(100);
+	msleep(50);
 
 	regmap_read(cs42l84->regmap, CS42L84_HS_DET_STATUS2, &reg);
 	regmap_update_bits(cs42l84->regmap,
