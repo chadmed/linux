@@ -834,10 +834,10 @@ static irqreturn_t cs42l84_irq_thread(int irq, void *data)
 		      (CS42L84_TS_PLUG | CS42L84_TS_UNPLUG)) >>
 		      CS42L84_TS_PLUG_SHIFT;
 
-		switch (current_plug_status) {
-		case CS42L84_PLUG:
-			if (cs42l84->plug_state != CS42L84_PLUG) {
-				cs42l84->plug_state = CS42L84_PLUG;
+		if (current_plug_status != cs42l84->plug_state) {
+			cs42l84->plug_state = current_plug_status;
+			switch (current_plug_status) {
+			case CS42L84_PLUG:
 				dev_dbg(cs42l84->dev, "Plug event\n");
 
 				cs42l84_detect_hs(cs42l84);
@@ -858,26 +858,19 @@ static irqreturn_t cs42l84_irq_thread(int irq, void *data)
 					cs42l84->plug_state = CS42L84_UNPLUG;
 					cs42l84_revert_hs(cs42l84);
 				}
-			}
-			break;
-
-		case CS42L84_UNPLUG:
-			if (cs42l84->plug_state != CS42L84_UNPLUG) {
-				cs42l84->plug_state = CS42L84_UNPLUG;
+				break;
+			case CS42L84_UNPLUG:
 				dev_dbg(cs42l84->dev, "Unplug event\n");
 
 				cs42l84_revert_hs(cs42l84);
 				cs42l84->hs_type = 0;
 				snd_soc_jack_report(cs42l84->jack, 0,
 						    SND_JACK_HEADSET);
+				break;
+			default:
+				break;
 			}
-			break;
-
-		default:
-			if (cs42l84->plug_state != CS42L84_TRANS)
-				cs42l84->plug_state = CS42L84_TRANS;
 		}
-	}
 	mutex_unlock(&cs42l84->irq_lock);
 
 	return IRQ_HANDLED;
