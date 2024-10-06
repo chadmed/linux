@@ -876,12 +876,13 @@ static irqreturn_t cs42l84_irq_thread(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void cs42l84_set_interrupt_masks(struct cs42l84_private *cs42l84)
+static void cs42l84_set_interrupt_masks(struct cs42l84_private *cs42l84,
+					unsigned int val)
 {
 	regmap_update_bits(cs42l84->regmap, CS42L84_TSRS_PLUG_INT_MASK,
 			CS42L84_RS_PLUG | CS42L84_RS_UNPLUG |
 			CS42L84_TS_PLUG | CS42L84_TS_UNPLUG,
-			CS42L84_RS_PLUG | CS42L84_RS_UNPLUG);
+			val);
 }
 
 static void cs42l84_setup_plug_detect(struct cs42l84_private *cs42l84)
@@ -1020,8 +1021,8 @@ static int cs42l84_i2c_probe(struct i2c_client *i2c_client)
 	/* Setup plug detection */
 	cs42l84_setup_plug_detect(cs42l84);
 
-	/* Mask/Unmask Interrupts */
-	cs42l84_set_interrupt_masks(cs42l84);
+	/* Mask ring sense interrupts */
+	cs42l84_set_interrupt_masks(cs42l84, CS42L84_RS_PLUG | CS42L84_RS_UNPLUG);
 
 	/* Register codec for machine driver */
 	ret = devm_snd_soc_register_component(&i2c_client->dev,
