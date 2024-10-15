@@ -2128,6 +2128,7 @@ F:	drivers/*/*alpine*
 
 ARM/APPLE MACHINE SOUND DRIVERS
 M:	Martin Povišer <povik+lin@cutebit.org>
+M:	James Calligeros <jcalligeros99@gmail.com>
 L:	asahi@lists.linux.dev
 L:	linux-sound@vger.kernel.org
 S:	Maintained
