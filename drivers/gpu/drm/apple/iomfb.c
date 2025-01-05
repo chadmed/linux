@@ -370,6 +370,9 @@ u32 drm_format_to_dcp(u32 drm)
 
 	case DRM_FORMAT_XRGB2101010:
 		return fourcc_code('r', '0', '3', 'w');
+
+	case DRM_FORMAT_YUV420:
+		return fourcc_code('v', '0', '2', '4');
 	}
 
 	pr_warn("DRM format %X not supported in DCP\n", drm);
