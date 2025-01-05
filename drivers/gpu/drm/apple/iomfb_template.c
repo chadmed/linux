@@ -1264,6 +1264,31 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	return 0;
 }
 
+void DCP_FW_NAME(build_dcp_surf)(struct DCP_FW_NAME(dcp_surface) *surf, struct drm_framebuffer *fb)
+{
+	/*
+	 * DCP doesn't support XBGR8 / XRGB8 natively. Blending as
+	 * pre-multiplied alpha with a black background can be used as
+	 * workaround for the bottommost plane.
+	 */
+	surf->is_premultiplied = (fb->format->format == DRM_FORMAT_XBGR8888 ||
+				  fb->format->format == DRM_FORMAT_XRGB8888);
+	surf->format = drm_format_to_dcp(fb->format->format);
+	surf->xfer_func = DCP_XFER_FUNC_SDR;
+	surf->colorspace = DCP_COLORSPACE_NATIVE;
+	surf->stride = fb->pitches[0];
+	surf->width = fb->width;
+	surf->height = fb->height;
+	surf->buf_size = fb->height * fb->pitches[0];
+
+	/* Only used for planar and compressed formats */
+	surf->pix_size = 1;
+	surf->pel_w = 1;
+	surf->pel_h = 1;
+	surf->has_comp = 1;
+	surf->has_planes = 1;
+}
+
 void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, struct drm_atomic_state *state)
 {
 	struct drm_plane *plane;
@@ -1300,7 +1325,6 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		struct drm_framebuffer *fb = new_state->fb;
 		struct drm_gem_dma_object *obj;
 		struct drm_rect src_rect;
-		bool is_premultiplied = false;
 
 		/* skip planes not for this crtc */
 		if (old_state->crtc != crtc && new_state->crtc != crtc)
@@ -1349,15 +1373,6 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		req->surf_null[l] = false;
 		has_surface = 1;
 
-		/*
-		 * DCP doesn't support XBGR8 / XRGB8 natively. Blending as
-		 * pre-multiplied alpha with a black background can be used as
-		 * workaround for the bottommost plane.
-		 */
-		if (fb->format->format == DRM_FORMAT_XRGB8888 ||
-		    fb->format->format == DRM_FORMAT_XBGR8888)
-		    is_premultiplied = true;
-
 		drm_rect_fp_to_int(&src_rect, &new_state->src);
 
 		req->swap.src_rect[l] = drm_to_dcp_rect(&src_rect);
@@ -1374,25 +1389,8 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		if (obj)
 			req->surf_iova[l] = obj->dma_addr + fb->offsets[0];
 
-		req->surf[l] = (struct DCP_FW_NAME(dcp_surface)){
-			.is_premultiplied = is_premultiplied,
-			.format = drm_format_to_dcp(fb->format->format),
-			.xfer_func = DCP_XFER_FUNC_SDR,
-			.colorspace = DCP_COLORSPACE_NATIVE,
-			.stride = fb->pitches[0],
-			.width = fb->width,
-			.height = fb->height,
-			.buf_size = fb->height * fb->pitches[0],
-			.surface_id = req->swap.surf_ids[l],
-
-			/* Only used for compressed or multiplanar surfaces */
-			.pix_size = 1,
-			.pel_w = 1,
-			.pel_h = 1,
-			.has_comp = 1,
-			.has_planes = 1,
-		};
-
+		DCP_FW_NAME(build_dcp_surf)(&req->surf[l], fb);
+		req->surf[l].surface_id = req->swap.surf_ids[l];
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {
