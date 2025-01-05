@@ -1264,7 +1264,7 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	return 0;
 }
 
-void DCP_FW_NAME(build_dcp_surf)(struct DCP_FW_NAME(dcp_surface) *surf, struct drm_framebuffer *fb)
+void DCP_FW_NAME(build_dcp_surf)(struct DCP_FW_NAME(dcp_surface) *surf, struct drm_framebuffer *fb, u64 addr)
 {
 	/*
 	 * DCP doesn't support XBGR8 / XRGB8 natively. Blending as
@@ -1276,17 +1276,57 @@ void DCP_FW_NAME(build_dcp_surf)(struct DCP_FW_NAME(dcp_surface) *surf, struct d
 	surf->format = drm_format_to_dcp(fb->format->format);
 	surf->xfer_func = DCP_XFER_FUNC_SDR;
 	surf->colorspace = DCP_COLORSPACE_NATIVE;
-	surf->stride = fb->pitches[0];
 	surf->width = fb->width;
 	surf->height = fb->height;
-	surf->buf_size = fb->height * fb->pitches[0];
 
-	/* Only used for planar and compressed formats */
+	/* YOLO */
+	if (fb->format->num_planes > 1) {
+		surf->has_planes = 1;
+		surf->buf_size = 0;
+		surf->plane_cnt = fb->format->num_planes;
+		surf->plane_cnt2 = fb->format->num_planes;
+		int i = 0;
+		for (i = 0; i < fb->format->num_planes; i += 1) {
+			surf->planes[i] = (struct dcp_plane_info){
+				.base = addr,
+				.offset = fb->offsets[i],
+				.stride = fb->pitches[i],
+				.width = drm_format_info_plane_width(fb->format,
+								     fb->width,
+								     i),
+				.height = drm_format_info_plane_height(fb->format,
+								       fb->height,
+								       i),
+				.size = drm_format_info_plane_height(fb->format,
+								     fb->height,
+								     i) * fb->pitches[i],
+				.tile_size = fb->format->char_per_block[i],
+				.tile_w = drm_format_info_block_width(fb->format, i),
+				.tile_h = drm_format_info_block_height(fb->format, i),
+			};
+			surf->buf_size += surf->planes[i].size;
+			printk("Plane %d: W: %d, H: %d, Stride: %d",
+			       i,
+			       surf->planes[i].width,
+			       surf->planes[i].height,
+			       surf->planes[i].stride);
+			printk("Plane %d: Size: 0x%x, CPB: %d, BW: %d, BH: %d",
+			       i,
+			       surf->planes[i].size,
+			       surf->planes[i].tile_size,
+			       surf->planes[i].tile_w,
+			       surf->planes[i].tile_h);
+		}
+	} else {
+		surf->stride = fb->pitches[0];
+		surf->buf_size = fb->height * fb->pitches[0];
+	}
+
+	/* Only used for compressed formats */
 	surf->pix_size = 1;
 	surf->pel_w = 1;
 	surf->pel_h = 1;
-	surf->has_comp = 1;
-	surf->has_planes = 1;
+	surf->has_comp = 0;
 }
 
 void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, struct drm_atomic_state *state)
@@ -1389,7 +1429,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		if (obj)
 			req->surf_iova[l] = obj->dma_addr + fb->offsets[0];
 
-		DCP_FW_NAME(build_dcp_surf)(&req->surf[l], fb);
+		DCP_FW_NAME(build_dcp_surf)(&req->surf[l], fb, req->surf_iova[l]);
 		req->surf[l].surface_id = req->swap.surf_ids[l];
 	}
 
