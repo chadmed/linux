@@ -53,6 +53,18 @@ struct snd_compr_stream;
 #define SND_SOC_POSSIBLE_DAIFMT_PDM		(1 << SND_SOC_DAI_FORMAT_PDM)
 
 /*
+ * DAI TDM slot idle modes
+ *
+ * Describes a CODEC/CPU's behaviour when not actively receiving or
+ * transmitting on a given TDM slot. NONE is undefined behaviour.
+ * Add new modes to the end.
+ */
+#define SND_SOC_DAI_TDM_IDLE_NONE	0
+#define SND_SOC_DAI_TDM_IDLE_ZERO	1
+#define SND_SOC_DAI_TDM_IDLE_PULLDOWN	2
+#define SND_SOC_DAI_TDM_IDLE_HIZ	3
+
+/*
  * DAI Clock gating.
  *
  * DAI bit clocks can be gated (disabled) when the DAI is not
