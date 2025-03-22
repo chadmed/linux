@@ -30,3 +30,36 @@ definitions:
   dai-tdm-slot-rx-mask:
     description: Receive direction slot mask. Optional. Identical to TX mask.
     $ref: /schemas/types.yaml#/definitions/uint32
+
+  dai-tdm-slot-tx-idle-mode:
+    description: Transmit direction idle slot mode. Optional. For hardware
+      that can configure its behaviour during idle TDM slots via
+      .set_tdm_idle(). "None" represents UB/unspecified behaviour and is the
+      same as not setting this property.
+    $ref: /schemas/types.yaml#/definitions/string
+    enum:
+      - none
+      - zero
+      - pulldown
+      - hiz
+
+  dai-tdm-slot-rx-idle-mode:
+    description: Receive direction idle slot mode. Optional. Identical to TX
+      idle slot mode.
+    $ref: /schemas/types.yaml#/definitions/string
+    enum:
+      - none
+      - zero
+      - pulldown
+      - hiz
+
+  dai-tdm-slot-tx-idle-mask:
+    description: Transmit direction idle slot mask. Optional. 1 represents
+      a slot to apply the configured idle mode to, 0 represents an active
+      transmit slot that should be ignored.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  dai-tdm-slot-rx-idle-mask:
+    description: Receive direction idle slot mask. Optional. Identical to
+      TX mask.
+    $ref: /schemas/types.yaml#/definitions/uint32
