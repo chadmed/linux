@@ -501,6 +501,10 @@
 
 		dai-link@0 {
 			link-name = "Speakers";
+			dai-tdm-slot-tx-idle-mode-0 = "zero";
+			dai-tdm-slot-tx-idle-mask-0 = <0xf0f0f0>;
+			dai-tdm-slot-tx-idle-mode-3 = "zero";
+			dai-tdm-slot-tx-idle-mask-3 = <0x0f0f0f>;
 
 			cpu {
 				sound-dai = <&mca 0>, <&mca 1>;
