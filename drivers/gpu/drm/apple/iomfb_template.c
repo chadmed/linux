@@ -48,6 +48,11 @@ static void release_wait_cookie(struct kref *ref)
         kfree(cookie);
 }
 
+static u64 ns_to_mach(ktime_t ktime)
+{
+	return ktime * (100 / 4167);
+}
+
 DCP_THUNK_OUT(iomfb_a131_pmu_service_matched, iomfbep_a131_pmu_service_matched, u32);
 DCP_THUNK_OUT(iomfb_a132_backlight_service_matched, iomfbep_a132_backlight_service_matched, u32);
 DCP_THUNK_OUT(iomfb_a358_vi_set_temperature_hint, iomfbep_a358_vi_set_temperature_hint, u32);
@@ -1139,6 +1144,7 @@ static void dcp_swapped(struct apple_dcp *dcp, void *data, void *cookie)
 		return;
 	}
 	dcp->swap_start = ktime_get();
+	dcp->last_present_time = ns_to_mach(ktime_get_ns());
 
 	while (!list_empty(&dcp->swapped_out_fbs)) {
 		struct dcp_fb_reference *entry;
@@ -1435,6 +1441,15 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		req->swap.bl_value = dcp->brightness.dac;
 		req->swap.bl_power = 0x40;
 		dcp->brightness.update = false;
+	}
+
+	if (has_surface) {
+		u64 timenow = ktime_get_ns();
+		u64 rrate = (crtc_state->mode.clock * 1000) / (crtc_state->mode.vtotal * crtc_state->mode.htotal);
+
+		req->swap.present_time = ns_to_mach(timenow + ((1 / rrate) * 1000000000));
+		req->swap.last_present_time = dcp->last_present_time;
+		req->swap.submit_time = ns_to_mach(timenow);
 	}
 
 	if (crtc_state->color_mgmt_changed && crtc_state->ctm) {

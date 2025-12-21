@@ -16,14 +16,13 @@
 #include "version_utils.h"
 
 struct DCP_FW_NAME(dcp_swap) {
-	u64 ts1;
-	u64 ts2;
-
+	u64 present_time;
+	u64 last_present_time;
 	u64 unk_10;
 	u64 unk_18;
-	u64 ts64_unk;
+	u64 unk20_ts;
 	u64 unk_28;
-	u64 ts3;
+	u64 submit_time;
 	u64 unk_38;
 
 	u64 flags1;

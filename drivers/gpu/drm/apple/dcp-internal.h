@@ -187,6 +187,7 @@ struct apple_dcp {
 	bool valid_mode;
 	bool use_timestamps;
 	struct dcp_set_digital_out_mode_req mode;
+	u64 last_present_time;
 
 	/* completion for active turning true */
 	struct completion start_done;
