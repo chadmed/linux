@@ -1378,24 +1378,49 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 			req->surf_iova[l] = obj->dma_addr + fb->offsets[0];
 
 		req->surf[l] = (struct DCP_FW_NAME(dcp_surface)){
-			.is_premultiplied = is_premultiplied,
+			.is_tiled = false, /* this... does nothing? */
+			.is_premultiplied = !fb->format->has_alpha,
+			.is_tearing_allowed = true,
+			.plane_cnt = fb->format->num_planes,
+			.plane_cnt2 = fb->format->num_planes,
 			.format = drm_format_to_dcp(fb->format->format),
 			.xfer_func = DCP_XFER_FUNC_SDR,
 			.colorspace = DCP_COLORSPACE_NATIVE,
 			.stride = fb->pitches[0],
 			.width = fb->width,
 			.height = fb->height,
-			.buf_size = fb->height * fb->pitches[0],
+			.buf_size = fb->format->num_planes == 1 ? fb->height * fb->pitches[0] : 0,
 			.surface_id = req->swap.surf_ids[l],
 
 			/* Only used for compressed or multiplanar surfaces */
 			.pix_size = 1,
 			.pel_w = 1,
 			.pel_h = 1,
-			.has_comp = 1,
-			.has_planes = 1,
+			.has_comp = fb->modifier == DRM_FORMAT_MOD_APPLE_GPU_TILED_COMPRESSED,
 		};
 
+		/* Populate plane information for planar formats */
+		if (fb->format->num_planes > 1) {
+			int i;
+
+			req->surf[l].has_planes = true;
+
+			for (i = 0; i < fb->format->num_planes; i++) {
+				req->surf[l].planes[i] = (struct dcp_plane_info){
+					.width = drm_format_info_plane_width(fb->format, req->surf[l].width, i),
+					.height = drm_format_info_plane_height(fb->format, req->surf[l].height, i),
+					.base = i == 0 ? 0 : (drm_format_info_plane_height(fb->format, req->surf[l].height, i - 1) * fb->pitches[i - 1]),
+					.offset = i == 0 ? 0 : (drm_format_info_plane_height(fb->format, req->surf[l].height, i - 1) * fb->pitches[i - 1]),
+					.stride = fb->pitches[i],
+					.size = drm_format_info_plane_height(fb->format, req->surf[l].height, i) * fb->pitches[i],
+					.tile_size = drm_format_info_block_width(fb->format, i) * drm_format_info_block_height(fb->format, i),
+					.tile_w = drm_format_info_block_width(fb->format, i),
+					.tile_h = drm_format_info_block_height(fb->format, i),
+				};
+
+				req->surf[l].buf_size += req->surf[l].planes[i].size;
+			}
+		}
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {

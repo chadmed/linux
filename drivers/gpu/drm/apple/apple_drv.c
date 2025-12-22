@@ -193,11 +193,13 @@ static const u32 dcp_primary_formats[] = {
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XBGR8888,
 	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_NV12,
 };
 
 static const u32 dcp_overlay_formats[] = {
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_NV12,
 };
 
 u64 apple_format_modifiers[] = {
