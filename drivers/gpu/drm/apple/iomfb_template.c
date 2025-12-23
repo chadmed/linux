@@ -1319,7 +1319,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		 * also unusable on some machines, so ignore it.
 		 */
 
-		l = MAX_BLEND_SURFACES - new_state->normalized_zpos;
+		l = new_state->normalized_zpos;
 
 		WARN_ON(l > MAX_BLEND_SURFACES);
 
