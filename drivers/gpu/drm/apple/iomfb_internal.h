@@ -117,6 +117,8 @@ void dcp_ack(struct apple_dcp *dcp, enum dcp_context_id context);
 struct dcp_rect drm_to_dcp_rect(struct drm_rect *rect);
 
 u32 drm_format_to_dcp(u32 drm);
+u32 drm_colour_to_dcp(u32 enc);
+u32 dcp_determine_xfer_func(const struct drm_format_info *fmt, u32 colour_enc);
 
 /* The user may own drm_display_mode, so we need to search for our copy */
 struct dcp_display_mode *lookup_mode(struct apple_dcp *dcp,
