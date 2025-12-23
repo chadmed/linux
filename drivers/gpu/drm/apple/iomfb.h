@@ -78,7 +78,7 @@ enum iomfb_property_id {
 
 #define SWAP_SURFACES 4
 /* We have 4 surfaces, but we can only ever blend two */
-#define MAX_BLEND_SURFACES 2
+#define MAX_BLEND_SURFACES 4
 #define MAX_PLANES 3
 
 enum dcp_colorspace {

@@ -20,7 +20,7 @@
 #include "iomfb_v13_3.h"
 #include "epic/dpavservep.h"
 
-#define DCP_MAX_PLANES 2
+#define DCP_MAX_PLANES 4
 
 struct apple_dcp;
 struct apple_dcp_afkep;
