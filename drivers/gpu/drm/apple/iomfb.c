@@ -378,6 +378,35 @@ u32 drm_format_to_dcp(u32 drm)
 	return 0;
 }
 
+u32 drm_colour_to_dcp(u32 enc)
+{
+	switch (enc) {
+	case DRM_COLOR_YCBCR_BT601:
+	case DRM_COLOR_YCBCR_BT709:
+		return DCP_COLORSPACE_BT709;
+	case DRM_COLOR_YCBCR_BT2020:
+		return DCP_COLORSPACE_BG_BT2020;
+	default:
+		return DCP_COLORSPACE_NATIVE;
+	}
+}
+
+u32 dcp_determine_xfer_func(const struct drm_format_info *fmt, u32 colour_enc)
+{
+	switch (fmt->format) {
+	case DRM_FORMAT_NV12:
+		switch (colour_enc) {
+		case DRM_COLOR_YCBCR_BT709:
+		case DRM_COLOR_YCBCR_BT2020:
+			return DCP_XFER_FUNC_BT1886;
+		default:
+			return DCP_XFER_FUNC_SDR;
+		}
+	default:
+		return DCP_XFER_FUNC_SDR;
+	}
+}
+
 int dcp_get_modes(struct drm_connector *connector)
 {
 	struct apple_connector *apple_connector = to_apple_connector(connector);
