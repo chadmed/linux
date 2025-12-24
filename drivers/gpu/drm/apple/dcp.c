@@ -105,14 +105,12 @@ static void send_vblank_event(struct drm_device *dev,
  */
 static void dcp_crtc_send_page_flip_event(struct apple_crtc *crtc,
 					  struct drm_pending_vblank_event *e,
-					  ktime_t now, ktime_t start)
+					  ktime_t now, ktime_t start, u64 swap_id)
 {
 	struct drm_device *dev = crtc->base.dev;
-	u64 seq;
 	unsigned int pipe = drm_crtc_index(&crtc->base);
 	ktime_t flip;
 
-	seq = 0;
 	if (start != KTIME_MIN) {
 		s64 delta = ktime_us_delta(now, start);
 		if (delta <= 500)
@@ -125,7 +123,7 @@ static void dcp_crtc_send_page_flip_event(struct apple_crtc *crtc,
 		flip = now;
 	}
 	e->pipe = pipe;
-	send_vblank_event(dev, e, seq, flip);
+	send_vblank_event(dev, e, swap_id, flip);
 }
 
 /* HACK: moved here to avoid circular dependency between apple_drv and dcp */
@@ -149,7 +147,7 @@ void dcp_drm_crtc_page_flip(struct apple_dcp *dcp, ktime_t now)
 	spin_lock_irqsave(&crtc->base.dev->event_lock, flags);
 	if (crtc->event) {
 		if (crtc->event->event.base.type == DRM_EVENT_FLIP_COMPLETE)
-			dcp_crtc_send_page_flip_event(crtc, crtc->event, now, dcp->swap_start);
+			dcp_crtc_send_page_flip_event(crtc, crtc->event, now, dcp->swap_start, dcp->last_swap_id);
 		else
 			drm_crtc_send_vblank_event(&crtc->base, crtc->event);
 		crtc->event = NULL;
