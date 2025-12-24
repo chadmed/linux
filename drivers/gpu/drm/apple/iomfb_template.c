@@ -1267,6 +1267,51 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	return 0;
 }
 
+/* Depends on ABI-sensitive IOMFB crap... */
+void DCP_FW_NAME(iomfb_create_surface)(struct DCP_FW_NAME(dcp_surface) *surf, struct drm_plane *plane, struct drm_plane_state *state)
+{
+	struct drm_framebuffer *fb = state->fb;
+	int i;
+
+	surf->is_tiled = false;
+	surf->is_premultiplied = !fb->format->has_alpha;
+	surf->is_tearing_allowed = true;
+	surf->plane_cnt = fb->format->num_planes;
+	surf->plane_cnt2 = fb->format->num_planes;
+	surf->format = drm_format_to_dcp(fb->format->format);
+	surf->xfer_func = dcp_determine_xfer_func(fb->format, state->color_encoding);
+	surf->colorspace = fb->format->is_yuv ? drm_colour_to_dcp(state->color_encoding) : DCP_COLORSPACE_NATIVE;
+	surf->stride = fb->pitches[0];
+	surf->width = fb->width;
+	surf->height = fb->height;
+	surf->buf_size = fb->format->num_planes == 1 ? surf->height * surf->stride : 0;
+	//surf->surface_id = plane->base.id;
+
+	/* For tiled/compressed surfaces */
+	surf->pix_size = 1;
+	surf->pel_w = 1;
+	surf->pel_h = 1;
+	surf->has_comp = fb->modifier == DRM_FORMAT_MOD_APPLE_GPU_TILED_COMPRESSED;
+
+	if (fb->format->num_planes > 1) {
+		surf->has_planes = true;
+		for (i = 0; i < fb->format->num_planes; i++) {
+			struct dcp_plane_info *pi = &surf->planes[i];
+			pi->width = drm_format_info_plane_width(fb->format, surf->width, i);
+			pi->height = drm_format_info_plane_height(fb->format, surf->height, i);
+			pi->base = i == 0 ? 0 : (drm_format_info_plane_height(fb->format, surf->height, i - 1) * fb->pitches[i - 1]);
+			pi->offset = i == 0 ? 0 : (drm_format_info_plane_height(fb->format, surf->height, i - 1) * fb->pitches[i - 1]);
+			pi->stride = fb->pitches[i];
+			pi->size = pi->height * pi->stride;
+			pi->tile_w = drm_format_info_block_width(fb->format, i);
+			pi->tile_h = drm_format_info_block_height(fb->format, i);
+			pi->tile_size = pi->tile_w * pi->tile_h;
+
+			surf->buf_size += pi->size;
+		}
+	}
+}
+
 void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, struct drm_atomic_state *state)
 {
 	struct drm_plane *plane;
@@ -1300,44 +1345,20 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 	}
 
 	for_each_oldnew_plane_in_state(state, plane, old_state, new_state, plane_idx) {
-		struct drm_framebuffer *fb = new_state->fb;
-		struct drm_gem_dma_object *obj;
 		struct drm_rect src_rect;
-		bool is_premultiplied = false;
+		struct drm_gem_dma_object *obj;
+		struct DCP_FW_NAME(dcp_surface) *surface = &req->surf[new_state->normalized_zpos];
 
 		/* skip planes not for this crtc */
 		if (old_state->crtc != crtc && new_state->crtc != crtc)
 			continue;
 
-		/*
-		 * Plane order is nondeterministic for this iterator. DCP will
-		 * almost always crash at some point if the z order of planes
-		 * flip-flops around. Make sure we are always blending them
-		 * in the correct order.
-		 *
-		 * Despite having 4 surfaces, we can only blend two. Surface 0 is
-		 * also unusable on some machines, so ignore it.
-		 */
+		req->swap.swap_enabled |= BIT(new_state->normalized_zpos);
 
-		l = new_state->normalized_zpos;
-
-		WARN_ON(l > MAX_BLEND_SURFACES);
-
-		req->swap.swap_enabled |= BIT(l);
-
-		if (old_state->fb && fb != old_state->fb) {
-			/*
-			 * Race condition between a framebuffer unbind getting
-			 * swapped out and GEM unreferencing a framebuffer. If
-			 * we lose the race, the display gets IOVA faults and
-			 * the DCP crashes. We need to extend the lifetime of
-			 * the drm_framebuffer (and hence the GEM object) until
-			 * after we get a swap complete for the swap unbinding
-			 * it.
-			 */
+		if (old_state->fb && new_state->fb != old_state->fb) {
 			struct dcp_fb_reference *entry =
 				kzalloc(sizeof(*entry), GFP_KERNEL);
-			if (entry) {
+				if (entry) {
 				entry->fb = old_state->fb;
 				entry->swap_id = dcp->last_swap_id;
 				list_add_tail(&entry->head,
@@ -1346,81 +1367,31 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 			drm_framebuffer_get(old_state->fb);
 		}
 
-		if (!new_state->fb || !new_state->visible) {
+		if (!new_state->fb || !new_state->visible)
 			continue;
-		}
-		req->surf_null[l] = false;
-		has_surface = 1;
-
-		/*
-		 * DCP doesn't support XBGR8 / XRGB8 natively. Blending as
-		 * pre-multiplied alpha with a black background can be used as
-		 * workaround for the bottommost plane.
-		 */
-		if (fb->format->format == DRM_FORMAT_XRGB8888 ||
-		    fb->format->format == DRM_FORMAT_XBGR8888)
-		    is_premultiplied = true;
 
 		drm_rect_fp_to_int(&src_rect, &new_state->src);
 
-		req->swap.src_rect[l] = drm_to_dcp_rect(&src_rect);
-		req->swap.dst_rect[l] = drm_to_dcp_rect(&new_state->dst);
+		req->swap.src_rect[new_state->normalized_zpos] = drm_to_dcp_rect(&src_rect);
+		req->swap.dst_rect[new_state->normalized_zpos] = drm_to_dcp_rect(&new_state->dst);
 
 		if (dcp->notch_height > 0)
-			req->swap.dst_rect[l].y += dcp->notch_height;
+			req->swap.dst_rect[new_state->normalized_zpos].y += dcp->notch_height;
+
+		DCP_FW_NAME(iomfb_create_surface)(surface, plane, new_state);
 
 		/* the obvious helper call drm_fb_dma_get_gem_addr() adjusts
 		 * the address for source x/y offsets. Since IOMFB has a direct
 		 * support source position prefer that.
 		 */
-		obj = drm_fb_dma_get_gem_obj(fb, 0);
+		obj = drm_fb_dma_get_gem_obj(new_state->fb, 0);
 		if (obj)
-			req->surf_iova[l] = obj->dma_addr + fb->offsets[0];
+			req->surf_iova[new_state->normalized_zpos] = obj->dma_addr + new_state->fb->offsets[0];
 
-		req->surf[l] = (struct DCP_FW_NAME(dcp_surface)){
-			.is_tiled = false, /* this... does nothing? */
-			.is_premultiplied = !fb->format->has_alpha,
-			.is_tearing_allowed = true,
-			.plane_cnt = fb->format->num_planes,
-			.plane_cnt2 = fb->format->num_planes,
-			.format = drm_format_to_dcp(fb->format->format),
-			.xfer_func = dcp_determine_xfer_func(fb->format, new_state->color_encoding),
-			.colorspace = fb->format->is_yuv ? drm_colour_to_dcp(new_state->color_encoding) : DCP_COLORSPACE_NATIVE,
-			.stride = fb->pitches[0],
-			.width = fb->width,
-			.height = fb->height,
-			.buf_size = fb->format->num_planes == 1 ? fb->height * fb->pitches[0] : 0,
-			.surface_id = req->swap.surf_ids[l],
+		req->surf_null[new_state->normalized_zpos] = false;
+		has_surface = true;
 
-			/* Only used for compressed or multiplanar surfaces */
-			.pix_size = 1,
-			.pel_w = 1,
-			.pel_h = 1,
-			.has_comp = fb->modifier == DRM_FORMAT_MOD_APPLE_GPU_TILED_COMPRESSED,
-		};
-
-		/* Populate plane information for planar formats */
-		if (fb->format->num_planes > 1) {
-			int i;
-
-			req->surf[l].has_planes = true;
-
-			for (i = 0; i < fb->format->num_planes; i++) {
-				req->surf[l].planes[i] = (struct dcp_plane_info){
-					.width = drm_format_info_plane_width(fb->format, req->surf[l].width, i),
-					.height = drm_format_info_plane_height(fb->format, req->surf[l].height, i),
-					.base = i == 0 ? 0 : (drm_format_info_plane_height(fb->format, req->surf[l].height, i - 1) * fb->pitches[i - 1]),
-					.offset = i == 0 ? 0 : (drm_format_info_plane_height(fb->format, req->surf[l].height, i - 1) * fb->pitches[i - 1]),
-					.stride = fb->pitches[i],
-					.size = drm_format_info_plane_height(fb->format, req->surf[l].height, i) * fb->pitches[i],
-					.tile_size = drm_format_info_block_width(fb->format, i) * drm_format_info_block_height(fb->format, i),
-					.tile_w = drm_format_info_block_width(fb->format, i),
-					.tile_h = drm_format_info_block_height(fb->format, i),
-				};
-
-				req->surf[l].buf_size += req->surf[l].planes[i].size;
-			}
-		}
+		req->swap.surf_ids[new_state->normalized_zpos] = surface->surface_id;
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {
