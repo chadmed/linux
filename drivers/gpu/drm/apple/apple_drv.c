@@ -270,7 +270,7 @@ static int apple_probe_per_dcp(struct device *dev,
 	struct apple_crtc *crtc;
 	struct apple_connector *connector;
 	struct apple_encoder *enc;
-	struct drm_plane *planes[DCP_MAX_PLANES];
+	struct drm_plane *planes[DCP_SURFACES];
 	int ret, i;
 	int immutable_zpos = 0;
 
@@ -284,7 +284,7 @@ static int apple_probe_per_dcp(struct device *dev,
 
 
 	/* Set up our other planes */
-	for (i = 1; i < DCP_MAX_PLANES; i++) {
+	for (i = 1; i < DCP_SURFACES; i++) {
 		planes[i] = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_OVERLAY);
 		if (IS_ERR(planes[i]))
 			return PTR_ERR(planes[i]);

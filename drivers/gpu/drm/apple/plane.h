@@ -10,6 +10,9 @@
 
 #include <linux/types.h>
 
+#define DCP_SURFACES	4
+#define MAX_PLANES	3
+
 #include "iomfb_plane.h"
 
 struct apple_plane_state {

@@ -909,7 +909,7 @@ void DCP_FW_NAME(iomfb_poweroff)(struct apple_dcp *dcp)
 	}
 
 	/* Null all surfaces */
-	for (int l = 0; l < SWAP_SURFACES; l++)
+	for (int l = 0; l < DCP_SURFACES; l++)
 		swap->surf_null[l] = true;
 #if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
 	for (int l = 0; l < 5; l++)
@@ -1284,7 +1284,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 
 	/* Reset all surfaces to defaults */
 	memset(req, 0, sizeof(*req));
-	for (l = 0; l < SWAP_SURFACES; l++)
+	for (l = 0; l < DCP_SURFACES; l++)
 		req->surf_null[l] = true;
 #if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
 	for (l = 0; l < 5; l++)
@@ -1320,9 +1320,9 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		 * also unusable on some machines, so ignore it.
 		 */
 
-		l = MAX_BLEND_SURFACES - new_state->normalized_zpos;
+		l = DCP_SURFACES - new_state->normalized_zpos;
 
-		WARN_ON(l > MAX_BLEND_SURFACES);
+		WARN_ON(l > DCP_SURFACES);
 
 		req->swap.swap_enabled |= BIT(l);
 
