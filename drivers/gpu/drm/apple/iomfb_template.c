@@ -1422,15 +1422,15 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		req->clear = 1;
 	}
 
-	if (has_surface && dcp->use_timestamps) {
-		/*
-		 * Fake timstamps to get 120hz refresh rate. It looks
-		 * like the actual value does not matter, as long  as it is non zero.
-		 */
-		req->swap.ts1 = 120;
-		req->swap.ts2 = 120;
-		req->swap.ts3 = 120;
-	}
+	// if (has_surface && dcp->use_timestamps) {
+	// 	/*
+	// 	 * Fake timstamps to get 120hz refresh rate. It looks
+	// 	 * like the actual value does not matter, as long  as it is non zero.
+	// 	 */
+	// 	req->swap.ts1 = 120;
+	// 	req->swap.ts2 = 120;
+	// 	req->swap.ts3 = 120;
+	// }
 
 	/* These fields should be set together */
 	req->swap.swap_completed = req->swap.swap_enabled;
