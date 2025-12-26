@@ -1312,7 +1312,6 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 	}
 
 	for_each_oldnew_plane_in_state(state, plane, old_state, new_state, plane_idx) {
-		struct drm_rect src_rect;
 		struct drm_gem_dma_object *obj;
 		struct apple_plane_state *ps = to_apple_plane_state(new_state);
 
@@ -1337,10 +1336,8 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		if (!new_state->fb || !new_state->visible)
 			continue;
 
-		drm_rect_fp_to_int(&src_rect, &new_state->src);
-
-		req->swap.src_rect[new_state->normalized_zpos] = drm_to_dcp_rect(&src_rect);
-		req->swap.dst_rect[new_state->normalized_zpos] = drm_to_dcp_rect(&new_state->dst);
+		req->swap.src_rect[new_state->normalized_zpos] = ps->src_rect;
+		req->swap.dst_rect[new_state->normalized_zpos] = ps->dst_rect;
 
 		if (dcp->notch_height > 0)
 			req->swap.dst_rect[new_state->normalized_zpos].y += dcp->notch_height;

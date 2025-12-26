@@ -25,6 +25,13 @@ enum dcp_xfer_func {
 	DCP_XFER_FUNC_HDR = 16,
 };
 
+struct dcp_rect {
+	u32 x;
+	u32 y;
+	u32 w;
+	u32 h;
+} __packed;
+
 struct dcp_component_types {
 	u8 count;
 	u8 types[7];
@@ -77,6 +84,8 @@ struct dcp_surface {
 struct apple_plane_state {
 	struct drm_plane_state base;
 	struct dcp_surface surface;
+	struct dcp_rect src_rect;
+	struct dcp_rect dst_rect;
 };
 
 #define to_apple_plane_state(x) container_of(x, struct apple_plane_state, base)

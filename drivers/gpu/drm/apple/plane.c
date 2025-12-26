@@ -98,6 +98,19 @@ static int apple_plane_atomic_check(struct drm_plane *plane,
 	return 0;
 }
 
+/*
+ * DRM specifies rectangles as start and end coordinates.  DCP specifies
+ * rectangles as a start coordinate and a width/height. Convert a DRM rectangle
+ * to a DCP rectangle.
+ */
+static struct dcp_rect drm_to_dcp_rect(struct drm_rect *rect)
+{
+	return (struct dcp_rect){ .x = rect->x1,
+				  .y = rect->y1,
+				  .w = drm_rect_width(rect),
+				  .h = drm_rect_height(rect) };
+}
+
 static u32 apple_plane_drm_format_to_dcp(u32 drm)
 {
 	switch (drm) {
@@ -154,6 +167,7 @@ static void apple_plane_atomic_update(struct drm_plane *plane,
 {
 	struct drm_plane_state *ns = drm_atomic_get_new_plane_state(state, plane);
 	struct apple_plane_state *ps;
+	struct drm_rect src_rect;
 
 	if (!ns)
 		return;
@@ -164,6 +178,11 @@ static void apple_plane_atomic_update(struct drm_plane *plane,
 		memset(&ps->surface, 0, sizeof(ps->surface));
 		return;
 	}
+
+	drm_rect_fp_to_int(&src_rect, &ns->src);
+
+	ps->src_rect = drm_to_dcp_rect(&src_rect);
+	ps->dst_rect = drm_to_dcp_rect(&ns->dst);
 
 	ps->surface = (struct dcp_surface) {
 		.is_tiled = false, /* Has nothing to do with tiled FBs. No clue... */
