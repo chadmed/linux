@@ -161,6 +161,5 @@ void DCP_FW_NAME(iomfb_poweroff)(struct apple_dcp *dcp);
 void DCP_FW_NAME(iomfb_sleep)(struct apple_dcp *dcp);
 void DCP_FW_NAME(iomfb_start)(struct apple_dcp *dcp);
 void DCP_FW_NAME(iomfb_shutdown)(struct apple_dcp *dcp);
-void DCP_FW_NAME(iomfb_create_surface)(struct DCP_FW_NAME(dcp_surface) *surf, struct drm_plane *plane, struct drm_plane_state *state);
 
 #endif

@@ -25,6 +25,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fourcc.h>
+#include <drm/drm_framebuffer.h>
 
 #include "plane.h"
 
@@ -97,10 +98,115 @@ static int apple_plane_atomic_check(struct drm_plane *plane,
 	return 0;
 }
 
+static u32 apple_plane_drm_format_to_dcp(u32 drm)
+{
+	switch (drm) {
+	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ARGB8888:
+		return fourcc_code('A', 'R', 'G', 'B');
+
+	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_ABGR8888:
+		return fourcc_code('A', 'B', 'G', 'R');
+
+	case DRM_FORMAT_XRGB2101010:
+		return fourcc_code('r', '0', '3', 'w');
+
+	case DRM_FORMAT_NV12:
+		return fourcc_code('v', '0', '2', '4');
+	}
+
+	pr_warn("DRM format %X not supported in DCP\n", drm);
+	return 0;
+}
+
+static u32 apple_plane_drm_colour_to_dcp(u32 enc)
+{
+	switch (enc) {
+	case DRM_COLOR_YCBCR_BT601:
+	case DRM_COLOR_YCBCR_BT709:
+		return DCP_COLORSPACE_BT709;
+	case DRM_COLOR_YCBCR_BT2020:
+		return DCP_COLORSPACE_BG_BT2020;
+	default:
+		return DCP_COLORSPACE_NATIVE;
+	}
+}
+
+static u32 apple_plane_determine_xfer_func(const struct drm_format_info *fmt, u32 colour_enc)
+{
+	switch (fmt->format) {
+	case DRM_FORMAT_NV12:
+		switch (colour_enc) {
+		case DRM_COLOR_YCBCR_BT709:
+		case DRM_COLOR_YCBCR_BT2020:
+			return DCP_XFER_FUNC_BT1886;
+		default:
+			return DCP_XFER_FUNC_SDR;
+		}
+	default:
+		return DCP_XFER_FUNC_SDR;
+	}
+}
+
 static void apple_plane_atomic_update(struct drm_plane *plane,
 				      struct drm_atomic_state *state)
 {
-	/* Handled in atomic_flush */
+	struct drm_plane_state *ns = drm_atomic_get_new_plane_state(state, plane);
+	struct apple_plane_state *ps;
+
+	if (!ns)
+		return;
+
+	ps = to_apple_plane_state(ns);
+
+	if (!ns->fb || !ns->visible) {
+		memset(&ps->surface, 0, sizeof(ps->surface));
+		return;
+	}
+
+	ps->surface = (struct dcp_surface) {
+		.is_tiled = false, /* Has nothing to do with tiled FBs. No clue... */
+		.is_tearing_allowed = true,
+		.is_premultiplied = !ns->fb->format->has_alpha,
+		.plane_cnt = ns->fb->format->num_planes,
+		.plane_cnt2 = ns->fb->format->num_planes,
+		.format = apple_plane_drm_format_to_dcp(ns->fb->format->format),
+		.xfer_func = apple_plane_determine_xfer_func(ns->fb->format, ns->color_encoding),
+		.colorspace = apple_plane_drm_colour_to_dcp(ns->color_encoding),
+		.stride = ns->fb->pitches[0],
+		.width = ns->fb->width,
+		.height = ns->fb->height,
+		.buf_size = ns->fb->format->num_planes == 1 ? ns->fb->height * ns->fb->pitches[0] : 0,
+		.surface_id = plane ? plane->base.id : 0,
+
+		/* Only used for tiled/compressed surfaces */
+		.pix_size = 1,
+		.pel_w = 1,
+		.pel_h = 1,
+		.has_comp = ns->fb->modifier == DRM_FORMAT_MOD_APPLE_GPU_TILED_COMPRESSED,
+	};
+
+	if (ns->fb->format->num_planes > 1) {
+		int i;
+
+		ps->surface.has_planes = true;
+		for (i = 0; i < ns->fb->format->num_planes; i++) {
+			ps->surface.planes[i] = (struct dcp_plane_info) {
+				.width = drm_format_info_plane_width(ns->fb->format, ps->surface.width, i),
+				.height = drm_format_info_plane_height(ns->fb->format, ps->surface.height, i),
+				.base = i ? drm_format_info_plane_height(ns->fb->format, ps->surface.height, i - 1) * ns->fb->pitches[i - 1] : 0,
+				.offset = i ? drm_format_info_plane_height(ns->fb->format, ps->surface.height, i - 1) * ns->fb->pitches[i - 1] : 0,
+				.stride = ns->fb->pitches[i],
+				.size = drm_format_info_plane_height(ns->fb->format, ps->surface.height, i) * ns->fb->pitches[i],
+				.tile_w = drm_format_info_block_width(ns->fb->format, i),
+				.tile_h = drm_format_info_block_height(ns->fb->format, i),
+				.tile_size = drm_format_info_block_width(ns->fb->format, i) * drm_format_info_block_height(ns->fb->format, i),
+			};
+
+			ps->surface.buf_size += ps->surface.planes[i].size;
+		}
+	}
 }
 
 static const struct drm_plane_helper_funcs apple_primary_plane_helper_funcs = {

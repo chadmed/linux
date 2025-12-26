@@ -6,9 +6,24 @@
 #ifndef __APPLE_PLANE_H__
 #define __APPLE_PLANE_H__
 
+#include <drm/drm_fourcc.h>
 #include <drm/drm_plane.h>
 
 #define MAX_PLANES 3
+
+enum dcp_colorspace {
+	DCP_COLORSPACE_BG_SRGB = 0,
+	DCP_COLORSPACE_BT709 = 2,
+	DCP_COLORSPACE_BG_BT2020 = 9,
+	DCP_COLORSPACE_NATIVE = 12,
+};
+
+enum dcp_xfer_func {
+	DCP_XFER_FUNC_UNK0 = 1,
+	DCP_XFER_FUNC_BT1886 = 2,
+	DCP_XFER_FUNC_SDR = 13,
+	DCP_XFER_FUNC_HDR = 16,
+};
 
 struct dcp_component_types {
 	u8 count;
