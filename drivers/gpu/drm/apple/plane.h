@@ -9,6 +9,7 @@
 #include <drm/drm_fourcc.h>
 #include <drm/drm_plane.h>
 
+#define DCP_SURFACES	4
 #define MAX_PLANES 3
 
 enum dcp_colorspace {

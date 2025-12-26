@@ -31,11 +31,11 @@ struct DCP_FW_NAME(dcp_swap) {
 
 	u32 swap_id;
 
-	u32 surf_ids[SWAP_SURFACES];
-	struct dcp_rect src_rect[SWAP_SURFACES];
-	u32 surf_flags[SWAP_SURFACES];
-	u32 surf_unk[SWAP_SURFACES];
-	struct dcp_rect dst_rect[SWAP_SURFACES];
+	u32 surf_ids[DCP_SURFACES];
+	struct dcp_rect src_rect[DCP_SURFACES];
+	u32 surf_flags[DCP_SURFACES];
+	u32 surf_unk[DCP_SURFACES];
+	struct dcp_rect dst_rect[DCP_SURFACES];
 	u32 swap_enabled;
 	u32 swap_completed;
 
@@ -73,10 +73,10 @@ struct DCP_FW_NAME(dcp_surface) {
 
 struct DCP_FW_NAME(dcp_swap_submit_req) {
 	struct DCP_FW_NAME(dcp_swap) swap;
-	struct DCP_FW_NAME(dcp_surface) surf[SWAP_SURFACES];
-	u64 surf_iova[SWAP_SURFACES];
+	struct DCP_FW_NAME(dcp_surface) surf[DCP_SURFACES];
+	u64 surf_iova[DCP_SURFACES];
 #if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
-	u64 unk_u64_a[SWAP_SURFACES];
+	u64 unk_u64_a[DCP_SURFACES];
 	struct DCP_FW_NAME(dcp_surface) surf2[5];
 	u64 surf2_iova[5];
 #endif
@@ -91,7 +91,7 @@ struct DCP_FW_NAME(dcp_swap_submit_req) {
 	u32 unkU32Ptr;
 #endif
 	u8 swap_null;
-	u8 surf_null[SWAP_SURFACES];
+	u8 surf_null[DCP_SURFACES];
 #if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
 	u8 surf2_null[5];
 #endif

@@ -355,8 +355,8 @@ int dcp_crtc_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		plane_count += 1;
 	}
 
-	if (plane_count > DCP_MAX_PLANES) {
-		dev_err(dcp->dev, "crtc_atomic_check: Blend supports only 2 layers!\n");
+	if (plane_count > DCP_SURFACES) {
+		dev_err(dcp->dev, "crtc_atomic_check: Blend supports only %d surfaces!\n", DCP_SURFACES);
 		return -EINVAL;
 	}
 
