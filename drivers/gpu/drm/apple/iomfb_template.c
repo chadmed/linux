@@ -29,6 +29,7 @@
 #include "iomfb.h"
 #include "iomfb_internal.h"
 #include "parser.h"
+#include "plane.h"
 #include "trace.h"
 #include "version_utils.h"
 
@@ -1267,51 +1268,6 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	return 0;
 }
 
-/* Depends on ABI-sensitive IOMFB crap... */
-void DCP_FW_NAME(iomfb_create_surface)(struct DCP_FW_NAME(dcp_surface) *surf, struct drm_plane *plane, struct drm_plane_state *state)
-{
-	struct drm_framebuffer *fb = state->fb;
-	int i;
-
-	surf->base.is_tiled = false;
-	surf->base.is_premultiplied = !fb->format->has_alpha;
-	surf->base.is_tearing_allowed = true;
-	surf->base.plane_cnt = fb->format->num_planes;
-	surf->base.plane_cnt2 = fb->format->num_planes;
-	surf->base.format = drm_format_to_dcp(fb->format->format);
-	surf->base.xfer_func = dcp_determine_xfer_func(fb->format, state->color_encoding);
-	surf->base.colorspace = fb->format->is_yuv ? drm_colour_to_dcp(state->color_encoding) : DCP_COLORSPACE_NATIVE;
-	surf->base.stride = fb->pitches[0];
-	surf->base.width = fb->width;
-	surf->base.height = fb->height;
-	surf->base.buf_size = fb->format->num_planes == 1 ? surf->base.height * surf->base.stride : 0;
-	//surf->surface_id = plane->base.id;
-
-	/* For tiled/compressed surfaces */
-	surf->base.pix_size = 1;
-	surf->base.pel_w = 1;
-	surf->base.pel_h = 1;
-	surf->base.has_comp = fb->modifier == DRM_FORMAT_MOD_APPLE_GPU_TILED_COMPRESSED;
-
-	if (fb->format->num_planes > 1) {
-		surf->base.has_planes = true;
-		for (i = 0; i < fb->format->num_planes; i++) {
-			struct dcp_plane_info *pi = &surf->base.planes[i];
-			pi->width = drm_format_info_plane_width(fb->format, surf->base.width, i);
-			pi->height = drm_format_info_plane_height(fb->format, surf->base.height, i);
-			pi->base = i == 0 ? 0 : (drm_format_info_plane_height(fb->format, surf->base.height, i - 1) * fb->pitches[i - 1]);
-			pi->offset = i == 0 ? 0 : (drm_format_info_plane_height(fb->format, surf->base.height, i - 1) * fb->pitches[i - 1]);
-			pi->stride = fb->pitches[i];
-			pi->size = pi->height * pi->stride;
-			pi->tile_w = drm_format_info_block_width(fb->format, i);
-			pi->tile_h = drm_format_info_block_height(fb->format, i);
-			pi->tile_size = pi->tile_w * pi->tile_h;
-
-			surf->base.buf_size += pi->size;
-		}
-	}
-}
-
 void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, struct drm_atomic_state *state)
 {
 	struct drm_plane *plane;
@@ -1347,7 +1303,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 	for_each_oldnew_plane_in_state(state, plane, old_state, new_state, plane_idx) {
 		struct drm_rect src_rect;
 		struct drm_gem_dma_object *obj;
-		struct DCP_FW_NAME(dcp_surface) *surface = &req->surf[new_state->normalized_zpos];
+		struct apple_plane_state *ps = to_apple_plane_state(new_state);
 
 		/* skip planes not for this crtc */
 		if (old_state->crtc != crtc && new_state->crtc != crtc)
@@ -1378,7 +1334,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		if (dcp->notch_height > 0)
 			req->swap.dst_rect[new_state->normalized_zpos].y += dcp->notch_height;
 
-		DCP_FW_NAME(iomfb_create_surface)(surface, plane, new_state);
+		req->surf[new_state->normalized_zpos].base = ps->surface;
 
 		/* the obvious helper call drm_fb_dma_get_gem_addr() adjusts
 		 * the address for source x/y offsets. Since IOMFB has a direct
@@ -1391,7 +1347,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		req->surf_null[new_state->normalized_zpos] = false;
 		has_surface = true;
 
-		req->swap.surf_ids[new_state->normalized_zpos] = surface->base.surface_id;
+		req->swap.surf_ids[new_state->normalized_zpos] = req->surf[new_state->normalized_zpos].base.surface_id;
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {
