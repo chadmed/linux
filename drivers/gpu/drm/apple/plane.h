@@ -59,6 +59,13 @@ struct dcp_surface {
 	u32 unk_denom;
 } __packed;
 
+struct apple_plane_state {
+	struct drm_plane_state base;
+	struct dcp_surface surface;
+};
+
+#define to_apple_plane_state(x) container_of(x, struct apple_plane_state, base)
+
 struct drm_plane *apple_plane_init(struct drm_device *dev,
 				   unsigned long possible_crtcs,
 				   enum drm_plane_type type);

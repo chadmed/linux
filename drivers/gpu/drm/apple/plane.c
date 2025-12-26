@@ -120,13 +120,29 @@ static void apple_plane_cleanup(struct drm_plane *plane)
 	kfree(plane);
 }
 
+static struct drm_plane_state *apple_plane_duplicate_state(struct drm_plane *plane)
+{
+	struct apple_plane_state *new_state, *old_state;
+
+	old_state = to_apple_plane_state(plane->state);
+
+	new_state = kzalloc(sizeof(*new_state), GFP_KERNEL);
+	if (!new_state)
+		return NULL;
+
+	__drm_atomic_helper_plane_duplicate_state(plane, &new_state->base);
+
+	new_state->surface = old_state->surface;
+
+	return &new_state->base;
+}
 
 static const struct drm_plane_funcs apple_plane_funcs = {
 	.update_plane		= drm_atomic_helper_update_plane,
 	.disable_plane		= drm_atomic_helper_disable_plane,
 	.destroy		= apple_plane_cleanup,
 	.reset			= drm_atomic_helper_plane_reset,
-	.atomic_duplicate_state = drm_atomic_helper_plane_duplicate_state,
+	.atomic_duplicate_state = apple_plane_duplicate_state,
 	.atomic_destroy_state	= drm_atomic_helper_plane_destroy_state,
 };
 
