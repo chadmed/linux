@@ -20,7 +20,6 @@
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_framebuffer.h>
-#include <drm/drm_gem_dma_helper.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_vblank.h>
 
@@ -1312,7 +1311,6 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 	}
 
 	for_each_oldnew_plane_in_state(state, plane, old_state, new_state, plane_idx) {
-		struct drm_gem_dma_object *obj;
 		struct apple_plane_state *ps = to_apple_plane_state(new_state);
 
 		/* skip planes not for this crtc */
@@ -1344,13 +1342,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 
 		req->surf[new_state->normalized_zpos].base = ps->surface;
 
-		/* the obvious helper call drm_fb_dma_get_gem_addr() adjusts
-		 * the address for source x/y offsets. Since IOMFB has a direct
-		 * support source position prefer that.
-		 */
-		obj = drm_fb_dma_get_gem_obj(new_state->fb, 0);
-		if (obj)
-			req->surf_iova[new_state->normalized_zpos] = obj->dma_addr + new_state->fb->offsets[0];
+		req->surf_iova[new_state->normalized_zpos] = ps->iova;
 
 		req->surf_null[new_state->normalized_zpos] = false;
 		has_surface = true;

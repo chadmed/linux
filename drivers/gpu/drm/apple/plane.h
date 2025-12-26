@@ -86,6 +86,7 @@ struct apple_plane_state {
 	struct dcp_surface surface;
 	struct dcp_rect src_rect;
 	struct dcp_rect dst_rect;
+	u64 iova;
 };
 
 #define to_apple_plane_state(x) container_of(x, struct apple_plane_state, base)
