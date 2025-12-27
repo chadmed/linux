@@ -129,6 +129,8 @@ static u32 apple_plane_drm_format_to_dcp(u32 drm)
 
 	case DRM_FORMAT_NV12:
 		return fourcc_code('v', '0', '2', '4');
+	case DRM_FORMAT_NV16:
+		return fourcc_code('v', '2', '2', '4');
 	}
 
 	pr_warn("DRM format %X not supported in DCP\n", drm);
@@ -150,8 +152,7 @@ static u32 apple_plane_drm_colour_to_dcp(u32 enc)
 
 static u32 apple_plane_determine_xfer_func(const struct drm_format_info *fmt, u32 colour_enc)
 {
-	switch (fmt->format) {
-	case DRM_FORMAT_NV12:
+	if (fmt->is_yuv) {
 		switch (colour_enc) {
 		case DRM_COLOR_YCBCR_BT709:
 		case DRM_COLOR_YCBCR_BT2020:
@@ -159,9 +160,9 @@ static u32 apple_plane_determine_xfer_func(const struct drm_format_info *fmt, u3
 		default:
 			return DCP_XFER_FUNC_SDR;
 		}
-	default:
-		return DCP_XFER_FUNC_SDR;
 	}
+
+	return DCP_XFER_FUNC_SDR;
 }
 
 static void apple_plane_atomic_update(struct drm_plane *plane,
@@ -301,6 +302,7 @@ static const u32 dcp_primary_formats[] = {
 	DRM_FORMAT_XBGR8888,
 	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_NV12,
+	DRM_FORMAT_NV16,
 };
 
 static const u32 dcp_overlay_formats[] = {
@@ -308,6 +310,7 @@ static const u32 dcp_overlay_formats[] = {
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_NV12,
+	DRM_FORMAT_NV16,
 };
 
 u64 apple_format_modifiers[] = {
