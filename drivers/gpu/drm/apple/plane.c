@@ -131,6 +131,9 @@ static u32 apple_plane_drm_format_to_dcp(u32 drm)
 		return fourcc_code('v', '0', '2', '4');
 	case DRM_FORMAT_NV16:
 		return fourcc_code('v', '2', '2', '4');
+
+	case DRM_FORMAT_NV24:
+		return fourcc_code('v', '4', '4', '4');
 	}
 
 	pr_warn("DRM format %X not supported in DCP\n", drm);
@@ -303,6 +306,7 @@ static const u32 dcp_primary_formats[] = {
 	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV16,
+	DRM_FORMAT_NV24,
 };
 
 static const u32 dcp_overlay_formats[] = {
@@ -311,6 +315,7 @@ static const u32 dcp_overlay_formats[] = {
 	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV16,
+	DRM_FORMAT_NV24,
 };
 
 u64 apple_format_modifiers[] = {
