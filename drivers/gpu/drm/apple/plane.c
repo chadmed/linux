@@ -124,7 +124,7 @@ static u32 apple_plane_drm_format_to_dcp(u32 drm)
 		return fourcc_code('A', 'B', 'G', 'R');
 
 	case DRM_FORMAT_XRGB2101010:
-		return fourcc_code('r', '0', '3', 'w');
+		return fourcc_code('r', '0', '1', 'l');
 
 	case DRM_FORMAT_NV12:
 		return fourcc_code('v', '0', '2', '4');
