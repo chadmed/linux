@@ -142,8 +142,10 @@ static u32 apple_plane_drm_format_to_dcp(u32 drm)
 
 static u32 apple_plane_drm_colour_to_dcp(u32 enc)
 {
+
 	switch (enc) {
 	case DRM_COLOR_YCBCR_BT601:
+		return DCP_COLORSPACE_BT601;
 	case DRM_COLOR_YCBCR_BT709:
 		return DCP_COLORSPACE_BT709;
 	case DRM_COLOR_YCBCR_BT2020:
@@ -153,19 +155,17 @@ static u32 apple_plane_drm_colour_to_dcp(u32 enc)
 	}
 }
 
-static u32 apple_plane_determine_xfer_func(const struct drm_format_info *fmt, u32 colour_enc)
+static u32 apple_plane_determine_xfer_func(u32 colour_enc)
 {
-	if (fmt->is_yuv) {
-		switch (colour_enc) {
-		case DRM_COLOR_YCBCR_BT709:
-		case DRM_COLOR_YCBCR_BT2020:
-			return DCP_XFER_FUNC_BT1886;
-		default:
-			return DCP_XFER_FUNC_SDR;
-		}
+	switch (colour_enc) {
+	case DRM_COLOR_YCBCR_BT601:
+		return DCP_XFER_FUNC_BT601;
+	case DRM_COLOR_YCBCR_BT709:
+	case DRM_COLOR_YCBCR_BT2020:
+		return DCP_XFER_FUNC_BT1886;
+	default:
+		return DCP_XFER_FUNC_SDR;
 	}
-
-	return DCP_XFER_FUNC_SDR;
 }
 
 static void apple_plane_atomic_update(struct drm_plane *plane,
@@ -198,7 +198,7 @@ static void apple_plane_atomic_update(struct drm_plane *plane,
 		.plane_cnt = ns->fb->format->num_planes,
 		.plane_cnt2 = ns->fb->format->num_planes,
 		.format = apple_plane_drm_format_to_dcp(ns->fb->format->format),
-		.xfer_func = apple_plane_determine_xfer_func(ns->fb->format, ns->color_encoding),
+		.xfer_func = apple_plane_determine_xfer_func(ns->color_encoding),
 		.colorspace = apple_plane_drm_colour_to_dcp(ns->color_encoding),
 		.stride = ns->fb->pitches[0],
 		.width = ns->fb->width,
