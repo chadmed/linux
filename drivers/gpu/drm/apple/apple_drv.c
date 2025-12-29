@@ -44,6 +44,10 @@
 
 #define MAX_COPROCESSORS 3
 
+bool experimental_colourspace;
+module_param(experimental_colourspace, bool, 0644);
+MODULE_PARM_DESC(experimental_colourspace, "Enable experiment colour management features");
+
 struct apple_drm_private {
 	struct drm_device drm;
 };
@@ -271,6 +275,7 @@ static int apple_probe_per_dcp(struct device *dev,
 	struct apple_encoder *enc;
 	struct drm_plane *planes[DCP_SURFACES];
 	int ret, i;
+	int connector_type;
 	int immutable_zpos = 0;
 
 	planes[0] = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_PRIMARY);
@@ -324,10 +329,43 @@ static int apple_probe_per_dcp(struct device *dev,
 	if (dcp_ext)
 		connector->base.fwnode = fwnode_handle_get(dcp->dev.fwnode);
 
+	connector_type = dcp_get_connector_type(dcp);
+
 	ret = drm_connector_init(drm, &connector->base, &apple_connector_funcs,
-				 dcp_get_connector_type(dcp));
+				connector_type);
 	if (ret)
 		return ret;
+
+	if (experimental_colourspace) {
+		/* TODO: more colourspaces! */
+		u32 supported_colourspaces = BIT(DRM_MODE_COLORIMETRY_BT709_YCC) |
+					     BIT(DRM_MODE_COLORIMETRY_BT2020_RGB) |
+					     BIT(DRM_MODE_COLORIMETRY_BT2020_YCC) |
+					     BIT(DRM_MODE_COLORIMETRY_DCI_P3_RGB_D65) |
+					     BIT(DRM_MODE_COLORIMETRY_DCI_P3_RGB_THEATER) |
+					     BIT(DRM_MODE_COLORIMETRY_RGB_WIDE_FIXED);
+
+		switch (connector_type) {
+		case DRM_MODE_CONNECTOR_eDP:
+		case DRM_MODE_CONNECTOR_DisplayPort:
+		case DRM_MODE_CONNECTOR_USB:
+			ret = drm_mode_create_dp_colorspace_property(&connector->base, supported_colourspaces);
+			break;
+		case DRM_MODE_CONNECTOR_HDMIA:
+			ret = drm_mode_create_hdmi_colorspace_property(&connector->base, supported_colourspaces);
+			break;
+		default:
+			dev_info(&dcp->dev, "Could not create colourspace property for connector!\n");
+			return -EINVAL;
+		}
+
+		if (ret)
+			dev_err(&dcp->dev, "Could not create colourspace property: %d\n", ret);
+		else
+			drm_connector_attach_colorspace_property(&connector->base);
+
+		drm_connector_attach_hdr_output_metadata_property(&connector->base);
+	}
 
 	connector->base.polled = DRM_CONNECTOR_POLL_HPD;
 	connector->connected = false;
