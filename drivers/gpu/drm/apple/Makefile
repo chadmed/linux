@@ -8,7 +8,6 @@ appledrm-$(CONFIG_DRM_APPLE_AUDIO) += audio.o
 appledrm-$(CONFIG_DRM_APPLE_AUDIO) += av.o
 appledrm-y += connector.o
 appledrm-y += ibootep.o
-appledrm-y += iomfb_v12_3.o
 appledrm-y += iomfb_v13_3.o
 appledrm-y += epic/dpavservep.o
 appledrm-y += plane.o

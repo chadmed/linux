@@ -16,7 +16,6 @@
 
 #include "dptxep.h"
 #include "iomfb.h"
-#include "iomfb_v12_3.h"
 #include "iomfb_v13_3.h"
 #include "epic/dpavservep.h"
 
@@ -27,7 +26,6 @@ struct dcpav_service_epic;
 
 enum dcp_firmware_version {
 	DCP_FIRMWARE_UNKNOWN,
-	DCP_FIRMWARE_V_12_3,
 	DCP_FIRMWARE_V_13_5,
 };
 
@@ -172,7 +170,6 @@ struct apple_dcp {
 
 	/* Queued swap. Owned by the DCP to avoid per-swap memory allocation */
 	union {
-		struct dcp_swap_submit_req_v12_3 v12_3;
 		struct dcp_swap_submit_req_v13_3 v13_3;
 	} swap;
 
