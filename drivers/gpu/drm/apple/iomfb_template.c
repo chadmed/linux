@@ -129,7 +129,7 @@ static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
 	trace_iomfb_swap_complete(dcp, resp->swap_id);
 	dcp->last_swap_id = resp->swap_id;
 
-	dcp_drm_crtc_page_flip(dcp, now);
+	dcp_drm_crtc_page_flip(dcp, now, true);
 	if (dcp->crc_enabled) {
 		u32 crc32 = 0;
 		drm_crtc_add_crc_entry(&dcp->crtc->base, true, resp->swap_id, &crc32);
@@ -740,7 +740,7 @@ static void dcp_swap_cleared(struct apple_dcp *dcp, void *data, void *cookie)
 
 	if (resp->ret) {
 		dev_err(dcp->dev, "swap_clear failed! status %u\n", resp->ret);
-		dcp_drm_crtc_vblank(dcp->crtc);
+		dcp_drm_crtc_page_flip(dcp, ktime_get(), false);
 		return;
 	}
 
@@ -1035,7 +1035,7 @@ static void dcpep_cb_hotplug(struct apple_dcp *dcp, u64 *connected)
 		dcp->valid_mode = false;
 		/* after unplug swap will not complete until the next
 		 * set_digital_out_mode */
-		schedule_work(&dcp->vblank_wq);
+		dcp_drm_crtc_page_flip(dcp, ktime_get(), false);
 	}
 
 	if (connector && connector->connected != !!(*connected)) {
@@ -1140,7 +1140,7 @@ static void dcp_swapped(struct apple_dcp *dcp, void *data, void *cookie)
 
 	if (resp->ret) {
 		dev_err(dcp->dev, "swap failed! status %u\n", resp->ret);
-		dcp_drm_crtc_vblank(dcp->crtc);
+		dcp_drm_crtc_page_flip(dcp, ktime_get(), false);
 		return;
 	}
 	dcp->swap_start = ktime_get();
@@ -1177,7 +1177,7 @@ static void do_swap(struct apple_dcp *dcp, void *data, void *cookie)
 	if (dcp->connector && dcp->connector->connected)
 		dcp_swap_start(dcp, false, &start_req, dcp_swap_started, NULL);
 	else
-		dcp_drm_crtc_vblank(dcp->crtc);
+		dcp_drm_crtc_page_flip(dcp, ktime_get(), false);
 }
 
 static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
@@ -1353,7 +1353,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 	if (!has_surface && !crtc_state->color_mgmt_changed) {
 		if (crtc_state->enable && crtc_state->active &&
 		    !crtc_state->planes_changed) {
-			schedule_work(&dcp->vblank_wq);
+			dcp_drm_crtc_page_flip(dcp, ktime_get(), false);
 			return;
 		}
 

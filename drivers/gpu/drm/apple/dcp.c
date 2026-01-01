@@ -126,20 +126,7 @@ static void dcp_crtc_send_page_flip_event(struct apple_crtc *crtc,
 	send_vblank_event(dev, e, swap_id, flip);
 }
 
-/* HACK: moved here to avoid circular dependency between apple_drv and dcp */
-void dcp_drm_crtc_vblank(struct apple_crtc *crtc)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&crtc->base.dev->event_lock, flags);
-	if (crtc->event) {
-		drm_crtc_send_vblank_event(&crtc->base, crtc->event);
-		crtc->event = NULL;
-	}
-	spin_unlock_irqrestore(&crtc->base.dev->event_lock, flags);
-}
-
-void dcp_drm_crtc_page_flip(struct apple_dcp *dcp, ktime_t now)
+void dcp_drm_crtc_page_flip(struct apple_dcp *dcp, ktime_t now, bool swapped)
 {
 	unsigned long flags;
 	struct apple_crtc *crtc = dcp->crtc;
@@ -147,7 +134,9 @@ void dcp_drm_crtc_page_flip(struct apple_dcp *dcp, ktime_t now)
 	spin_lock_irqsave(&crtc->base.dev->event_lock, flags);
 	if (crtc->event) {
 		if (crtc->event->event.base.type == DRM_EVENT_FLIP_COMPLETE)
-			dcp_crtc_send_page_flip_event(crtc, crtc->event, now, dcp->swap_start, dcp->last_swap_id);
+			dcp_crtc_send_page_flip_event(crtc, crtc->event, now,
+						      swapped ? dcp->swap_start : KTIME_MIN,
+						      swapped ? dcp->last_swap_id : 0);
 		else
 			drm_crtc_send_vblank_event(&crtc->base, crtc->event);
 		crtc->event = NULL;
@@ -201,20 +190,6 @@ int dcp_set_crc(struct drm_crtc *crtc, bool enabled)
 	dcp->crc_enabled = enabled;
 
 	return 0;
-}
-
-/*
- * Helper to send a DRM vblank event. We do not know how call swap_submit_dcp
- * without surfaces. To avoid timeouts in drm_atomic_helper_wait_for_vblanks
- * send a vblank event via a workqueue.
- */
-static void dcp_delayed_vblank(struct work_struct *work)
-{
-	struct apple_dcp *dcp;
-
-	dcp = container_of(work, struct apple_dcp, vblank_wq);
-	mdelay(5);
-	dcp_drm_crtc_vblank(dcp->crtc);
 }
 
 static void dcp_recv_msg(void *cookie, u8 endpoint, u64 message)
@@ -1052,8 +1027,6 @@ static int dcp_comp_bind(struct device *dev, struct device *main, void *data)
 	// TDOD: mem_desc IDs start at 1, for simplicity just skip '0' entry
 	set_bit(0, dcp->memdesc_map);
 
-	INIT_WORK(&dcp->vblank_wq, dcp_delayed_vblank);
-
 	dcp->swapped_out_fbs =
 		(struct list_head)LIST_HEAD_INIT(dcp->swapped_out_fbs);
 
@@ -1129,7 +1102,6 @@ static void dcp_comp_unbind(struct device *dev, struct device *main, void *data)
 		cancel_work_sync(&dcp->bl_register_wq);
 		cancel_work_sync(&dcp->bl_update_wq);
 	}
-	cancel_work_sync(&dcp->vblank_wq);
 
 	devm_clk_put(dev, dcp->clk);
 	dcp->clk = NULL;
