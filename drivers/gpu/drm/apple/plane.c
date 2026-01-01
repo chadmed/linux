@@ -156,7 +156,7 @@ static u32 apple_plane_drm_colour_to_dcp(const struct drm_format_info *fmt, u32 
 		}
 	}
 
-	return DCP_COLORSPACE_NATIVE;
+	return DCP_COLORSPACE_BG_SRGB;
 }
 
 static u32 apple_plane_determine_xfer_func(const struct drm_format_info *fmt, u32 colour_enc)
