@@ -215,9 +215,6 @@ struct apple_dcp {
 
 	unsigned notch_height;
 
-	/* Workqueue for sending vblank events when a dcp swap is not possible */
-	struct work_struct vblank_wq;
-
 	/* List of referenced drm_framebuffers which can be unreferenced
 	 * on the next successfully completed swap.
 	 */
@@ -266,7 +263,7 @@ struct apple_dcp {
 	int hdmi_hpd_irq;
 };
 
-void dcp_drm_crtc_page_flip(struct apple_dcp *dcp, ktime_t now);
+void dcp_drm_crtc_page_flip(struct apple_dcp *dcp, ktime_t now, bool swapped);
 
 int dcp_backlight_register(struct apple_dcp *dcp);
 int dcp_backlight_update(struct apple_dcp *dcp);
