@@ -1347,6 +1347,8 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 
 		req->surf_iova[new_state->normalized_zpos] = apple_state->iova;
 		req->surf[new_state->normalized_zpos].base = apple_state->surf;
+		req->swap.surf_ids[new_state->normalized_zpos] =
+			req->surf[new_state->normalized_zpos].base.surface_id;
 
 	}
 
