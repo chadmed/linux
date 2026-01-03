@@ -1310,21 +1310,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		if (old_state->crtc != crtc && new_state->crtc != crtc)
 			continue;
 
-		/*
-		 * Plane order is nondeterministic for this iterator. DCP will
-		 * almost always crash at some point if the z order of planes
-		 * flip-flops around. Make sure we are always blending them
-		 * in the correct order.
-		 *
-		 * Despite having 4 surfaces, we can only blend two. Surface 0 is
-		 * also unusable on some machines, so ignore it.
-		 */
-
-		l = DCP_SURFACES - new_state->normalized_zpos;
-
-		WARN_ON(l > DCP_SURFACES);
-
-		req->swap.swap_enabled |= BIT(l);
+		req->swap.swap_enabled |= BIT(new_state->normalized_zpos);
 
 		if (old_state->fb && new_state->fb != old_state->fb) {
 			/*
@@ -1350,17 +1336,17 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		if (!new_state->fb || !new_state->visible) {
 			continue;
 		}
-		req->surf_null[l] = false;
+		req->surf_null[new_state->normalized_zpos] = false;
 		has_surface = 1;
 
-		req->swap.src_rect[l] = apple_state->src_rect;
-		req->swap.dst_rect[l] = apple_state->dst_rect;
+		req->swap.src_rect[new_state->normalized_zpos] = apple_state->src_rect;
+		req->swap.dst_rect[new_state->normalized_zpos] = apple_state->dst_rect;
 
 		if (dcp->notch_height > 0)
-			req->swap.dst_rect[l].y += dcp->notch_height;
+			req->swap.dst_rect[new_state->normalized_zpos].y += dcp->notch_height;
 
-		req->surf_iova[l] = apple_state->iova;
-		req->surf[l].base = apple_state->surf;
+		req->surf_iova[new_state->normalized_zpos] = apple_state->iova;
+		req->surf[new_state->normalized_zpos].base = apple_state->surf;
 
 	}
 
