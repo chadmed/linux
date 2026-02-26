@@ -272,4 +272,8 @@
 	apple,temporal-filter = <1>;
 };
 
+&pmp_report_isp_sys {
+	status = "okay";
+};
+
 #include "hwmon-laptop.dtsi"

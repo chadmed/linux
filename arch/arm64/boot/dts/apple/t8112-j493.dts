@@ -325,5 +325,9 @@
 	apple,platform-id = <6>;
 };
 
+&pmp_report_isp_sys {
+	status = "okay";
+};
+
 #include "hwmon-fan.dtsi"
 #include "hwmon-laptop.dtsi"

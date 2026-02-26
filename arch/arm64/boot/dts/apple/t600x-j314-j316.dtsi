@@ -642,6 +642,10 @@
 	apple,platform-id = <3>;
 };
 
+&pmp_report_isp_sys {
+	status = "okay";
+};
+
 #include "hwmon-common.dtsi"
 #include "hwmon-fan-dual.dtsi"
 #include "hwmon-laptop.dtsi"
