@@ -1406,20 +1406,39 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		dcp->brightness.update = false;
 	}
 
-	if (crtc_state->color_mgmt_changed && crtc_state->ctm) {
+	if (crtc_state->color_mgmt_changed) {
 		struct iomfb_set_matrix_req mat;
-		struct drm_color_ctm *ctm = (struct drm_color_ctm *)crtc_state->ctm->data;
 
 		mat.unk_u32 = 9;
-		mat.r[0] = ctm->matrix[0];
-		mat.r[1] = ctm->matrix[1];
-		mat.r[2] = ctm->matrix[2];
-		mat.g[0] = ctm->matrix[3];
-		mat.g[1] = ctm->matrix[4];
-		mat.g[2] = ctm->matrix[5];
-		mat.b[0] = ctm->matrix[6];
-		mat.b[1] = ctm->matrix[7];
-		mat.b[2] = ctm->matrix[8];
+
+		if (crtc_state->ctm) {
+			struct drm_color_ctm *ctm = (struct drm_color_ctm *)crtc_state->ctm->data;
+
+			mat.r[0] = ctm->matrix[0];
+			mat.r[1] = ctm->matrix[1];
+			mat.r[2] = ctm->matrix[2];
+			mat.g[0] = ctm->matrix[3];
+			mat.g[1] = ctm->matrix[4];
+			mat.g[2] = ctm->matrix[5];
+			mat.b[0] = ctm->matrix[6];
+			mat.b[1] = ctm->matrix[7];
+			mat.b[2] = ctm->matrix[8];
+		} else {
+			/*
+			 * Some clients will clear/free the CTM blob rather than
+			 * reset or ramp it back to the identity. Deal with these
+			 * here.
+			 */
+			mat.r[0] = 1;
+			mat.r[1] = 0;
+			mat.r[2] = 0;
+			mat.g[0] = 0;
+			mat.g[1] = 1;
+			mat.g[2] = 0;
+			mat.b[0] = 0;
+			mat.b[1] = 0;
+			mat.b[2] = 1;
+		}
 
 		iomfb_set_matrix(dcp, false, &mat, do_swap, NULL);
 	} else
