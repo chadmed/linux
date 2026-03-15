@@ -352,6 +352,9 @@ static int parse_color_modes(struct dcp_parse_ctx *handle,
 {
 	struct iterator outer_it;
 	int ret = 0;
+	out->hdr_rgb.score = -1;
+	out->hdr_444.score = -1;
+	out->hdr_422.score = -1;
 	out->sdr_444.score = -1;
 	out->sdr_rgb.score = -1;
 	out->sdr.score = -1;
@@ -410,8 +413,21 @@ static int parse_color_modes(struct dcp_parse_ctx *handle,
 				cmode.depth <= 10)
 				fill_color_mode(&out->sdr_444, &cmode);
 			fill_color_mode(&out->sdr, &cmode);
+		} else if (cmode.eotf == DCP_EOTF_ST_2084) {
+			/* Only support PQ for now */
+			if (cmode.pixel_encoding == DCP_COLOR_FORMAT_RGB &&
+			    cmode.depth >= 10)
+				fill_color_mode(&out->hdr_rgb, &cmode);
+			else if (cmode.pixel_encoding == DCP_COLOR_FORMAT_YCBCR444 &&
+				 cmode.depth >= 10)
+				fill_color_mode(&out->hdr_444, &cmode);
+			else if (cmode.pixel_encoding == DCP_COLOR_FORMAT_YCBCR422 &&
+				 cmode.depth >= 10)
+				fill_color_mode(&out->hdr_422, &cmode);
 		}
-		fill_color_mode(&out->best, &cmode);
+
+		if (cmode.score > out->best.score)
+			fill_color_mode(&out->best, &cmode);
 	}
 
 	return 0;
@@ -439,7 +455,7 @@ static int parse_mode(struct dcp_parse_ctx *handle,
 	struct iterator it;
 	struct dimension horiz, vert;
 	s64 id = -1;
-	s64 best_color_mode = -1;
+	s64 best_sdr_color_mode = -1;
 	bool is_virtual = false;
 	struct drm_display_mode *mode = &out->mode;
 
@@ -469,26 +485,35 @@ static int parse_mode(struct dcp_parse_ctx *handle,
 			kfree(key);
 
 		if (ret) {
-			trace_iomfb_parse_mode_fail(id, &horiz, &vert, best_color_mode, is_virtual, *score);
+			trace_iomfb_parse_mode_fail(id, &horiz, &vert, best_sdr_color_mode, is_virtual, *score);
 			return ret;
 		}
 	}
 	if (out->sdr_rgb.score >= 0)
-		best_color_mode = out->sdr_rgb.id;
+		best_sdr_color_mode = out->sdr_rgb.id;
 	else if (out->sdr_444.score >= 0)
-		best_color_mode = out->sdr_444.id;
+		best_sdr_color_mode = out->sdr_444.id;
 	else if (out->sdr.score >= 0)
-		best_color_mode = out->sdr.id;
+		best_sdr_color_mode = out->sdr.id;
 	else if (out->best.score >= 0)
-		best_color_mode = out->best.id;
+		best_sdr_color_mode = out->best.id;
 
-	trace_iomfb_parse_mode_success(id, &horiz, &vert, best_color_mode,
+	if (out->hdr_rgb.score >= 0)
+		out->hdr_colour_mode_id = out->hdr_rgb.id;
+	else if (out->hdr_444.score >= 0)
+		out->hdr_colour_mode_id = out->hdr_444.id;
+	else if (out->hdr_422.score >= 0)
+		out->hdr_colour_mode_id = out->hdr_422.id;
+	else
+		out->hdr_colour_mode_id = -1;
+
+	trace_iomfb_parse_mode_success(id, &horiz, &vert, best_sdr_color_mode,
 				       is_virtual, *score);
 
 	/*
 	 * Reject modes without valid color mode.
 	 */
-	if (best_color_mode < 0)
+	if (best_sdr_color_mode < 0)
 		return -EINVAL;
 
 	/*
@@ -537,11 +562,11 @@ static int parse_mode(struct dcp_parse_ctx *handle,
 	drm_mode_set_name(mode);
 
 	out->timing_mode_id = id;
-	out->color_mode_id = best_color_mode;
+	out->color_mode_id = best_sdr_color_mode;
 
 	trace_iomfb_timing_mode(handle->dcp, id, *score, horiz.active,
 				vert.active, vert.precise_sync_rate,
-				best_color_mode);
+				best_sdr_color_mode);
 
 	return 0;
 }

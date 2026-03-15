@@ -86,7 +86,11 @@ struct dcp_color_mode {
 struct dcp_display_mode {
 	struct drm_display_mode mode;
 	u32 color_mode_id;
+	u32 hdr_colour_mode_id;
 	u32 timing_mode_id;
+	struct dcp_color_mode hdr_rgb;
+	struct dcp_color_mode hdr_444;
+	struct dcp_color_mode hdr_422;
 	struct dcp_color_mode sdr_rgb;
 	struct dcp_color_mode sdr_444;
 	struct dcp_color_mode sdr;
