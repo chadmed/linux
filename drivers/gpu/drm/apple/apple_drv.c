@@ -46,6 +46,10 @@
 
 #define MAX_COPROCESSORS 3
 
+static bool hdr;
+module_param(hdr, bool, 0644);
+MODULE_PARM_DESC(hdr, "Enable HDR and expose display colourspace settings to userspace");
+
 struct apple_drm_private {
 	struct drm_device drm;
 };
@@ -275,6 +279,7 @@ static int apple_probe_per_dcp(struct device *dev,
 	struct drm_plane *planes[DCP_MAX_PLANES];
 	int ret, i;
 	int immutable_zpos = 0;
+	int connector_type;
 	bool supports_l10r = !dcp_fw_compat_is_12_x(dcp);
 
 	planes[0] = apple_plane_init(drm, 1U << num, supports_l10r,
@@ -322,6 +327,7 @@ static int apple_probe_per_dcp(struct device *dev,
 	enc->base.possible_crtcs = drm_crtc_mask(&crtc->base);
 
 	connector = kzalloc(sizeof(*connector), GFP_KERNEL);
+	connector_type = dcp_get_connector_type(dcp);
 	mutex_init(&connector->chunk_lock);
 	drm_connector_helper_add(&connector->base,
 				 &apple_connector_helper_funcs);
@@ -331,9 +337,39 @@ static int apple_probe_per_dcp(struct device *dev,
 		connector->base.fwnode = fwnode_handle_get(dcp->dev.fwnode);
 
 	ret = drm_connector_init(drm, &connector->base, &apple_connector_funcs,
-				 dcp_get_connector_type(dcp));
+				 connector_type);
 	if (ret)
 		return ret;
+
+	if (hdr) {
+		/* TODO: DCP supports a bunch more colourspaces */
+		u32 colourspaces = BIT(DRM_MODE_COLORIMETRY_BT709_YCC) |
+				   BIT(DRM_MODE_COLORIMETRY_BT2020_RGB) |
+				   BIT(DRM_MODE_COLORIMETRY_BT2020_YCC) |
+				   BIT(DRM_MODE_COLORIMETRY_DCI_P3_RGB_D65) |
+				   BIT(DRM_MODE_COLORIMETRY_DCI_P3_RGB_THEATER) |
+				   BIT(DRM_MODE_COLORIMETRY_RGB_WIDE_FIXED);
+
+		switch (connector_type) {
+		case DRM_MODE_CONNECTOR_eDP:
+		case DRM_MODE_CONNECTOR_DisplayPort:
+		case DRM_MODE_CONNECTOR_USB:
+			ret = drm_mode_create_dp_colorspace_property(&connector->base, colourspaces);
+			break;
+		case DRM_MODE_CONNECTOR_HDMIA:
+			ret = drm_mode_create_hdmi_colorspace_property(&connector->base, colourspaces);
+			break;
+		default:
+			dev_err(&dcp->dev, "Invalid connector type %d. Skipping colourspace enumeration.\n", connector_type);
+		}
+
+		if (ret)
+			dev_err(&dcp->dev, "Failed to create colourspace property: %d\n", ret);
+		else
+			drm_connector_attach_colorspace_property(&connector->base);
+
+		drm_connector_attach_hdr_output_metadata_property(&connector->base);
+	}
 
 	connector->base.polled = DRM_CONNECTOR_POLL_HPD;
 	connector->connected = false;
