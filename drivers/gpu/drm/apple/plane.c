@@ -16,6 +16,8 @@
 #include <drm/drm_gem_dma_helper.h>
 #include <drm/drm_plane.h>
 
+#include "dcp.h"
+
 #define FRAC_16_16(mult, div)    (((mult) << 16) / (div))
 
 static int apple_plane_atomic_check(struct drm_plane *plane,
@@ -171,8 +173,13 @@ static u32 drm_format_to_dcp(u32 drm, enum drm_color_range range)
 	return 0;
 }
 
-static enum dcp_xfer_func get_xfer_func(bool is_yuv, enum drm_color_encoding enc)
+static enum dcp_xfer_func get_xfer_func(bool hdr,
+					bool is_yuv,
+					enum drm_color_encoding enc)
 {
+	if (hdr)
+		return DCP_XFER_FUNC_HDR;
+
 	if (!is_yuv)
 		return DCP_XFER_FUNC_SDR;
 
@@ -187,9 +194,13 @@ static enum dcp_xfer_func get_xfer_func(bool is_yuv, enum drm_color_encoding enc
 	}
 }
 
-static enum dcp_colorspace get_colorspace(bool is_yuv,
+static enum dcp_colorspace get_colorspace(bool hdr,
+					  bool is_yuv,
 					  enum drm_color_encoding enc)
 {
+	if (hdr)
+		return DCP_COLORSPACE_BG_BT2020;
+
 	if (!is_yuv)
 		return DCP_COLORSPACE_NATIVE;
 
@@ -208,13 +219,20 @@ static enum dcp_colorspace get_colorspace(bool is_yuv,
 static void apple_plane_atomic_update(struct drm_plane *plane,
 				      struct drm_atomic_state *state)
 {
+	struct apple_dcp *dcp;
 	struct drm_plane_state *base = drm_atomic_get_new_plane_state(state, plane);
 	struct apple_plane_state *new_state;
 	struct drm_gem_dma_object *obj;
 	bool is_premultiplied = false;
+	bool hdr = false;
 
 	if (!base)
 		return;
+
+	if (base->crtc) {
+		dcp = platform_get_drvdata(to_apple_crtc(base->crtc)->dcp);
+		hdr = dcp->hdr_enabled;
+	}
 
 	new_state = to_apple_plane_state(base);
 
@@ -243,8 +261,8 @@ static void apple_plane_atomic_update(struct drm_plane *plane,
 		.plane_cnt = fb->format->num_planes,
 		.plane_cnt2 = fb->format->num_planes,
 		.format = drm_format_to_dcp(fmt->format, base->color_range),
-		.xfer_func = get_xfer_func(fmt->is_yuv, base->color_encoding),
-		.colorspace = get_colorspace(fmt->is_yuv, base->color_encoding),
+		.xfer_func = get_xfer_func(hdr, fmt->is_yuv, base->color_encoding),
+		.colorspace = get_colorspace(hdr, fmt->is_yuv, base->color_encoding),
 		.stride = fb->pitches[0],
 		.width = fb->width,
 		.height = fb->height,
