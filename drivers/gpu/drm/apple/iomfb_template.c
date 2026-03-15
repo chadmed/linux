@@ -1205,19 +1205,32 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 		return -EIO;
 	}
 
-	dev_info(dcp->dev,
-		 "set_digital_out_mode(color:%d timing:%d) " DRM_MODE_FMT "\n",
-		 mode->color_mode_id, mode->timing_mode_id,
-		 DRM_MODE_ARG(&crtc_state->mode));
-	if (mode->color_mode_id == mode->sdr_rgb.id)
-		cmode = &mode->sdr_rgb;
-	else if (mode->color_mode_id == mode->sdr_444.id)
-		cmode = &mode->sdr_444;
-	else if (mode->color_mode_id == mode->sdr.id)
-		cmode = &mode->sdr;
-	else if (mode->color_mode_id == mode->best.id)
-		cmode = &mode->best;
+	if (dcp->hdr_enabled) {
+		if (mode->hdr_colour_mode_id == mode->hdr_rgb.id)
+			cmode = &mode->hdr_rgb;
+		else if (mode->hdr_colour_mode_id == mode->hdr_444.id)
+			cmode = &mode->hdr_444;
+		else if (mode->hdr_colour_mode_id == mode->hdr_422.id)
+			cmode = &mode->hdr_422;
+	} else {
+		if (mode->color_mode_id == mode->sdr_rgb.id)
+			cmode = &mode->sdr_rgb;
+		else if (mode->color_mode_id == mode->sdr_444.id)
+			cmode = &mode->sdr_444;
+		else if (mode->color_mode_id == mode->sdr.id)
+			cmode = &mode->sdr;
+		else if (mode->color_mode_id == mode->best.id)
+			cmode = &mode->best;
+	}
+
 	if (cmode)
+		dev_info(dcp->dev,
+		 "set_digital_out_mode(color:%d timing:%d) " DRM_MODE_FMT "\n",
+		 cmode->id, mode->timing_mode_id,
+		 DRM_MODE_ARG(&crtc_state->mode));
+	else
+		return -EINVAL;
+
 		dev_info(dcp->dev,
 			"set_digital_out_mode() color mode depth:%hhu format:%u "
 			"colorimetry:%u eotf:%u range:%u vrr:%u\n", cmode->depth,
@@ -1225,7 +1238,7 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 			cmode->range, mode->vrr);
 
 	dcp->mode = (struct dcp_set_digital_out_mode_req){
-		.color_mode_id = mode->color_mode_id,
+		.color_mode_id = cmode->id,
 		.timing_mode_id = mode->timing_mode_id
 	};
 
