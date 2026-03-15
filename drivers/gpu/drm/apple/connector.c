@@ -131,6 +131,24 @@ static void dcp_connector_set_dict(struct apple_connector *connector,
 	*dict = *chunks;
 }
 
+int dcp_connector_atomic_check(struct drm_connector *connector, struct drm_atomic_state *state)
+{
+	struct apple_connector *apple_conn = to_apple_connector(connector);
+	struct platform_device *pdev = apple_conn->dcp;
+	struct apple_dcp *dcp = platform_get_drvdata(pdev);
+	struct drm_connector_state *new_conn_state = drm_atomic_get_new_connector_state(state, connector);
+	struct drm_connector_state *old_conn_state = drm_atomic_get_old_connector_state(state, connector);
+
+	struct drm_crtc_state *crtc_state = drm_atomic_get_new_crtc_state(state, new_conn_state->crtc);
+
+	if (!!new_conn_state->hdr_output_metadata != !!old_conn_state->hdr_output_metadata) {
+		crtc_state->mode_changed = true;
+		dcp->hdr_enabled = !!new_conn_state->hdr_output_metadata;
+	}
+
+	return 0;
+}
+
 void dcp_connector_update_dict(struct apple_connector *connector, const char *key,
 			       struct dcp_chunks *chunks)
 {

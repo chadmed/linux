@@ -255,6 +255,7 @@ static const struct drm_connector_funcs apple_connector_funcs = {
 };
 
 static const struct drm_connector_helper_funcs apple_connector_helper_funcs = {
+	.atomic_check		= dcp_connector_atomic_check,
 	.get_modes		= dcp_get_modes,
 	.mode_valid		= dcp_mode_valid,
 };

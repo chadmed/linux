@@ -37,6 +37,8 @@ struct apple_connector {
 
 #define to_apple_connector(x) container_of(x, struct apple_connector, base)
 
+int dcp_connector_atomic_check(struct drm_connector *connector, struct drm_atomic_state *state);
+
 void apple_connector_debugfs_init(struct drm_connector *connector, struct dentry *root);
 
 void dcp_connector_update_dict(struct apple_connector *connector, const char *key,
