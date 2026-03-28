@@ -12,6 +12,7 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_blend.h>
+#include <drm/drm_colorop.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_framebuffer.h>
@@ -614,6 +615,10 @@ static u64 format_modifiers_no_ix[] = {
 	DRM_FORMAT_MOD_INVALID
 };
 
+static const struct drm_colorop_funcs cop_funcs = {
+	.destroy = drm_colorop_destroy,
+};
+
 struct drm_plane *apple_plane_init(struct drm_device *dev,
 				   unsigned long possible_crtcs,
 				   u32 iomfb_surf,
@@ -624,8 +629,12 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 {
 	struct apple_plane *plane;
 	u64 supp_blends = BIT(DRM_MODE_BLEND_PIXEL_NONE);
+	struct drm_colorop *cop;
+	struct drm_prop_enum_list pipelines[1] = {};
 	const u32 *fmts;
 	u32 num_fmts;
+	u64 supp_cops;
+	int ret;
 
 	switch (type) {
 	case DRM_PLANE_TYPE_PRIMARY:
@@ -683,6 +692,28 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 		drm_plane_helper_add(&plane->base, &apple_plane_helper_funcs);
 
 	plane->iomfb_surf = iomfb_surf;
+
+	cop = devm_kzalloc(dev->dev, sizeof(*cop), GFP_KERNEL);
+	if (!cop)
+		return ERR_PTR(-ENOMEM);
+
+	supp_cops = BIT(DRM_COLOROP_1D_CURVE_SRGB_EOTF) |
+		    BIT(DRM_COLOROP_1D_CURVE_SRGB_INV_EOTF) |
+		    BIT(DRM_COLOROP_1D_CURVE_PQ_125_EOTF) |
+		    BIT(DRM_COLOROP_1D_CURVE_PQ_125_INV_EOTF) |
+		    BIT(DRM_COLOROP_1D_CURVE_BT2020_OETF) |
+		    BIT(DRM_COLOROP_1D_CURVE_BT2020_INV_OETF) |
+		    BIT(DRM_COLOROP_1D_CURVE_GAMMA22) |
+		    BIT(DRM_COLOROP_1D_CURVE_GAMMA22_INV);
+
+	ret = drm_plane_colorop_curve_1d_init(dev, cop, &plane->base, &cop_funcs, supp_cops, 0);
+	if (ret)
+		return ERR_PTR(ret);
+
+	pipelines->name = kasprintf(GFP_KERNEL, "Colour Pipeline %d", cop->base.id);
+	pipelines->type = cop->base.id;
+
+	drm_plane_create_color_pipeline_property(&plane->base, pipelines, 1);
 
 	return &plane->base;
 }
