@@ -26,8 +26,8 @@ enum dcp_color_eotf {
 enum dcp_color_format {
 	DCP_COLOR_FORMAT_RGB                 =  0, // "RGB"
 	DCP_COLOR_FORMAT_YCBCR420            =  1, // "YUV 4:2:0"
-	DCP_COLOR_FORMAT_YCBCR422            =  3, // "YUV 4:2:2"
-	DCP_COLOR_FORMAT_YCBCR444            =  2, // "YUV 4:4:4"
+	DCP_COLOR_FORMAT_YCBCR422            =  2, // "YUV 4:2:2"
+	DCP_COLOR_FORMAT_YCBCR444            =  3, // "YUV 4:4:4"
 	DCP_COLOR_FORMAT_DV_NATIVE           =  4, // "DolbyVision (native)"
 	DCP_COLOR_FORMAT_DV_HDMI             =  5, // "DolbyVision (HDMI)"
 	DCP_COLOR_FORMAT_YCBCR422_DP         =  6, // "YCbCr 4:2:2 (DP tunnel)"
