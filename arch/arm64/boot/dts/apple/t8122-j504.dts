@@ -42,6 +42,7 @@
 &port01 {
 	/* SD card reader */
 	bus-range = <2 2>;
+	pwren-gpios = <&smc_gpio 23 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 
 	sdhci0: mmc@0,0 {
