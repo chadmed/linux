@@ -180,7 +180,7 @@ struct apple_dcp {
 
 	/* swap id of the last completed swap */
 	u32 last_swap_id;
-	ktime_t swap_start;
+	u64 swap_start;
 
 	/* Current display mode */
 	bool during_modeset;

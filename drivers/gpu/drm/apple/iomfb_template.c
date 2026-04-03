@@ -1154,7 +1154,7 @@ static void dcp_swapped(struct apple_dcp *dcp, void *data, void *cookie)
 		dcp_drm_crtc_vblank(dcp->crtc);
 		return;
 	}
-	dcp->swap_start = ktime_get();
+	dcp->swap_start = ktime_get_ns();
 
 	while (!list_empty(&dcp->swapped_out_fbs)) {
 		struct dcp_fb_reference *entry;
@@ -1330,6 +1330,11 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	return 0;
 }
 
+static u64 ns_to_mach(u64 ns)
+{
+	return ns * 100 / 4167;
+}
+
 void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, struct drm_atomic_state *state)
 {
 	struct drm_plane *plane;
@@ -1449,9 +1454,9 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		 * Fake timstamps to get 120hz refresh rate. It looks
 		 * like the actual value does not matter, as long  as it is non zero.
 		 */
-		req->swap.ts1 = 120;
-		req->swap.ts2 = 120;
-		req->swap.ts3 = 120;
+		req->swap.presentation_time = ns_to_mach(ktime_get_ns());
+		req->swap.last_pres_time = dcp->swap_start;
+		req->swap.submit_time = req->swap.presentation_time;
 	}
 
 	/* These fields should be set together */
