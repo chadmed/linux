@@ -1299,6 +1299,15 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	return 0;
 }
 
+/*
+ * DCP timestamps are expressed in system timer ticks. Approximate
+ * this by converting from ktime nanoseconds to 24 MHz ticks.
+ */
+static u64 ns_to_mach(u64 ns)
+{
+	return ns * 3 / 125;
+}
+
 void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, struct drm_atomic_state *state)
 {
 	struct drm_plane *plane;
@@ -1415,12 +1424,14 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 
 	if (has_surface && dcp->use_timestamps) {
 		/*
-		 * Fake timstamps to get 120hz refresh rate. It looks
-		 * like the actual value does not matter, as long  as it is non zero.
+		 * TODO: ascertain with certainty what these timestamps
+		 * are. They are something to do with presentation timing,
+		 * but that is all we know for sure. These values seem to
+		 * work well with VRR.
 		 */
-		req->swap.ts1 = 120;
-		req->swap.ts2 = 120;
-		req->swap.ts3 = 120;
+		req->swap.unk_pres_ts1 = ns_to_mach(ktime_get_ns());
+		req->swap.unk_pres_ts2 = ns_to_mach(ktime_to_ns(dcp->swap_start));
+		req->swap.unk_pres_ts3 = req->swap.unk_pres_ts1;
 	}
 
 	/* These fields should be set together */
