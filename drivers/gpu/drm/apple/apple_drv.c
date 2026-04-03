@@ -342,6 +342,10 @@ static int apple_probe_per_dcp(struct device *dev,
 	if (ret)
 		return ret;
 
+	ret = drm_connector_attach_vrr_capable_property(&connector->base);
+	if (ret)
+		return ret;
+
 	if (hdr) {
 		/* TODO: DCP supports a bunch more colourspaces */
 		u32 colourspaces = BIT(DRM_MODE_COLORIMETRY_BT709_YCC) |

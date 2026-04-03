@@ -96,6 +96,8 @@ struct dcp_display_mode {
 	struct dcp_color_mode sdr;
 	struct dcp_color_mode best;
 	bool vrr;
+	s64 min_vrr;
+	s64 max_vrr;
 };
 
 struct dimension {
