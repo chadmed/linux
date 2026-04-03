@@ -546,8 +546,9 @@ static u8 dcpep_cb_prop_chunk(struct apple_dcp *dcp,
 static bool dcpep_process_chunks(struct apple_dcp *dcp,
 				 struct dcp_set_dcpav_prop_end_req *req)
 {
+	struct apple_connector *connector = dcp->connector;
 	struct dcp_parse_ctx ctx;
-	int ret;
+	int ret, i;
 
 	if (!dcp->chunks.data) {
 		dev_warn(dcp->dev, "ignoring spurious end\n");
@@ -587,6 +588,15 @@ static bool dcpep_process_chunks(struct apple_dcp *dcp,
 		}
 
 		dcp_set_dimensions(dcp);
+	}
+
+	if (connector) {
+		for (i = 0; i < dcp->nr_modes; i++) {
+			if (dcp->modes[i].vrr) {
+				drm_connector_set_vrr_capable_property(&connector->base, true);
+				break;
+			}
+		}
 	}
 
 	return true;
@@ -1171,6 +1181,33 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 	}
 }
 
+/* Changes to Adaptive Sync require a trip through set_digital_out_mode */
+static void dcp_on_set_adaptive_sync(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	dcp_set_digital_out_mode(dcp, false, &dcp->mode,
+				 complete_set_digital_out_mode, cookie);
+}
+
+static void dcp_set_adaptive_sync(struct apple_dcp *dcp, u32 rate, void *cookie)
+{
+	struct dcp_set_parameter_dcp param = {
+		.param = IOMFBPARAM_ADAPTIVE_SYNC,
+		.value = {
+			rate,              /* minRR */
+			0,                 /* mediaTargetRate */
+			0,                 /* Fractional Rate (?) */
+			0,                 /* unused */
+		},
+#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
+		.count = 3,
+#else
+		.count = 1,
+#endif
+	};
+
+	dcp_set_parameter_dcp(dcp, false, &param, dcp_on_set_adaptive_sync, cookie);
+}
+
 int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 			       struct drm_crtc_state *crtc_state)
 {
@@ -1225,8 +1262,11 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 
 	dcp->during_modeset = true;
 
-	dcp_set_digital_out_mode(dcp, false, &dcp->mode,
-				 complete_set_digital_out_mode, cookie);
+	if (mode->vrr)
+		dcp_set_adaptive_sync(dcp, mode->min_vrr, cookie);
+	else
+		dcp_set_digital_out_mode(dcp, false, &dcp->mode,
+					 complete_set_digital_out_mode, cookie);
 
 	/*
 	 * The DCP firmware has an internal timeout of ~8 seconds for
