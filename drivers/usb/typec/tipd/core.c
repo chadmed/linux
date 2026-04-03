@@ -758,7 +758,7 @@ static void cd321x_update_work(struct work_struct *work)
 			      (TPS_DATA_STATUS_USB2_CONNECTION | TPS_DATA_STATUS_USB3_CONNECTION);
 
 	bool dp_hpd = st.data_status & CD321X_DATA_STATUS_HPD_LEVEL;
-	bool dp_hpd_changed = st.data_status_changed & CD321X_DATA_STATUS_HPD_LEVEL;
+	bool dp_hpd_changed = st.status_changed & CD321X_DATA_STATUS_HPD_LEVEL;
 
 	enum usb_role old_role = usb_role_switch_get_role(tps->role_sw);
 	enum usb_role new_role = USB_ROLE_NONE;
