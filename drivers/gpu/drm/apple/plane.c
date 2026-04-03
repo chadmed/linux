@@ -456,7 +456,7 @@ struct apple_plane {
 struct drm_plane *apple_plane_init(struct drm_device *dev,
 				   unsigned long possible_crtcs,
 				   bool supports_l10r,
-				   enum drm_plane_type type)
+				   bool primary_created)
 {
 	struct apple_plane *plane;
 	struct drm_colorop *cop;
@@ -466,21 +466,7 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 	u64 supp_cops;
 	int ret;
 
-	switch (type) {
-	case DRM_PLANE_TYPE_PRIMARY:
-		if (supports_l10r) {
-			fmts = dcp_primary_formats;
-			num_fmts = ARRAY_SIZE(dcp_primary_formats);
-		} else {
-			fmts = dcp_primary_formats_12_x;
-			num_fmts = ARRAY_SIZE(dcp_primary_formats_12_x);
-		}
-		plane = drmm_universal_plane_alloc(dev, struct apple_plane, base, possible_crtcs,
-				       &apple_plane_funcs, fmts, num_fmts,
-				       apple_format_modifiers, type, NULL);
-		break;
-	case DRM_PLANE_TYPE_OVERLAY:
-	case DRM_PLANE_TYPE_CURSOR:
+	if (primary_created) {
 		if (supports_l10r) {
 			fmts = dcp_overlay_formats;
 			num_fmts = ARRAY_SIZE(dcp_overlay_formats);
@@ -490,10 +476,18 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 		}
 		plane = drmm_universal_plane_alloc(dev, struct apple_plane, base, possible_crtcs,
 				       &apple_plane_funcs, fmts, num_fmts,
-				       apple_format_modifiers, type, NULL);
-		break;
-	default:
-		return ERR_PTR(-EINVAL);
+				       apple_format_modifiers, DRM_PLANE_TYPE_OVERLAY, NULL);
+	} else {
+		if (supports_l10r) {
+			fmts = dcp_primary_formats;
+			num_fmts = ARRAY_SIZE(dcp_primary_formats);
+		} else {
+			fmts = dcp_primary_formats_12_x;
+			num_fmts = ARRAY_SIZE(dcp_primary_formats_12_x);
+		}
+		plane = drmm_universal_plane_alloc(dev, struct apple_plane, base, possible_crtcs,
+				       &apple_plane_funcs, fmts, num_fmts,
+				       apple_format_modifiers, DRM_PLANE_TYPE_PRIMARY, NULL);
 	}
 
 	if (IS_ERR(plane))
@@ -505,10 +499,10 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 					  DRM_COLOR_YCBCR_BT709,
 					  DRM_COLOR_YCBCR_LIMITED_RANGE);
 
-	if (type == DRM_PLANE_TYPE_PRIMARY)
-		drm_plane_helper_add(&plane->base, &apple_primary_plane_helper_funcs);
-	else
+	if (primary_created)
 		drm_plane_helper_add(&plane->base, &apple_plane_helper_funcs);
+	else
+		drm_plane_helper_add(&plane->base, &apple_primary_plane_helper_funcs);
 
 	cop = devm_kzalloc(dev->dev, sizeof(*cop), GFP_KERNEL);
 	if (!cop)

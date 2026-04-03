@@ -278,31 +278,25 @@ static int apple_probe_per_dcp(struct device *dev,
 	struct apple_connector *connector;
 	struct apple_encoder *enc;
 	struct drm_plane *planes[DCP_MAX_PLANES];
-	int ret, i;
-	int immutable_zpos = 0;
+	struct apple_dcp *dcp_drv = platform_get_drvdata(dcp);
+	int ret;
+	int zpos, pri;
 	int connector_type;
 	bool supports_l10r = !dcp_fw_compat_is_12_x(dcp);
+	bool primary_created = false;
 
-	planes[0] = apple_plane_init(drm, 1U << num, supports_l10r,
-				     DRM_PLANE_TYPE_PRIMARY);
-	if (IS_ERR(planes[0]))
-		return PTR_ERR(planes[0]);
-	ret = drm_plane_create_zpos_immutable_property(planes[0], immutable_zpos);
-	if (ret) {
-		return ret;
-	}
+	for (zpos = 0; zpos < DCP_MAX_PLANES; zpos++) {
+		if (dcp_drv->hw.valid_surfaces & BIT(zpos)) {
+			planes[zpos] = apple_plane_init(drm, 1U << num, supports_l10r,
+							primary_created);
+			if (IS_ERR(planes[zpos]))
+				return PTR_ERR(planes[zpos]);
+			if (!primary_created) {
+				primary_created = true;
+				pri = zpos;
+			}
 
-
-	/* Set up our other planes */
-	for (i = 1; i < DCP_MAX_PLANES; i++) {
-		planes[i] = apple_plane_init(drm, 1U << num, supports_l10r,
-					     DRM_PLANE_TYPE_OVERLAY);
-		if (IS_ERR(planes[i]))
-			return PTR_ERR(planes[i]);
-		immutable_zpos++;
-		ret = drm_plane_create_zpos_immutable_property(planes[i], immutable_zpos);
-		if (ret) {
-			return ret;
+			ret = drm_plane_create_zpos_immutable_property(planes[zpos], zpos);
 		}
 	}
 
@@ -313,7 +307,7 @@ static int apple_probe_per_dcp(struct device *dev,
 	 * knows what to do with overlays.
 	 */
 	crtc = kzalloc(sizeof(*crtc), GFP_KERNEL);
-	ret = drm_crtc_init_with_planes(drm, &crtc->base, planes[0], NULL,
+	ret = drm_crtc_init_with_planes(drm, &crtc->base, planes[pri], NULL,
 					&apple_crtc_funcs, NULL);
 	if (ret)
 		return ret;

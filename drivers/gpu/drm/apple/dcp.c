@@ -334,7 +334,7 @@ int dcp_crtc_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	struct drm_plane_state *new_state;
 	struct drm_plane *plane;
 	struct drm_crtc_state *crtc_state;
-	int plane_idx, plane_count = 0;
+	int plane_idx;
 	bool needs_modeset;
 
 	if (dcp->crashed)
@@ -353,12 +353,11 @@ int dcp_crtc_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		if (new_state->crtc != crtc)
 			continue;
 
-		plane_count += 1;
-	}
-
-	if (plane_count > DCP_MAX_PLANES) {
-		dev_err(dcp->dev, "crtc_atomic_check: Blend supports only 2 layers!\n");
-		return -EINVAL;
+		if (!(dcp->hw.valid_surfaces & BIT(new_state->normalized_zpos))) {
+			dev_err(dcp->dev, "crtc_atomic_check: Plane %d is not valid for surface mask 0x%x\n",
+				new_state->normalized_zpos, dcp->hw.valid_surfaces);
+			return -EINVAL;
+		}
 	}
 
 	return 0;
@@ -1318,25 +1317,50 @@ static DEFINE_SIMPLE_DEV_PM_OPS(dcp_platform_pm_ops,
 
 static const struct apple_dcp_hw_data apple_dcp_hw_t6020 = {
 	.num_dptx_ports = 1,
+	.valid_surfaces = 0xb, /* 3, 1, 0 */
 };
 
 static const struct apple_dcp_hw_data apple_dcp_hw_t8112 = {
 	.num_dptx_ports = 2,
+	.valid_surfaces = 0xb, /* 3, 1, 0 */
+};
+
+static const struct apple_dcp_hw_data apple_dcp_hw_t8103 = {
+	.num_dptx_ports = 0,
+	.valid_surfaces = 0x3, /* 1, 0 */
 };
 
 static const struct apple_dcp_hw_data apple_dcp_hw_dcp = {
 	.num_dptx_ports = 0,
+	.valid_surfaces = 0x1, /* 0 */
+};
+
+static const struct apple_dcp_hw_data apple_dcp_hw_dcpext_t8112 = {
+	.num_dptx_ports = 2,
+	.valid_surfaces = 0xb,
+};
+
+static const struct apple_dcp_hw_data apple_dcp_hw_dcpext_t8103 = {
+	.num_dptx_ports = 2,
+	.valid_surfaces = 0x3,
 };
 
 static const struct apple_dcp_hw_data apple_dcp_hw_dcpext = {
 	.num_dptx_ports = 2,
+	.valid_surfaces = 0x1,
 };
 
 static const struct of_device_id of_match[] = {
-	{ .compatible = "apple,t6020-dcp", .data = &apple_dcp_hw_t6020,  },
-	{ .compatible = "apple,t8112-dcp", .data = &apple_dcp_hw_t8112,  },
-	{ .compatible = "apple,dcp",       .data = &apple_dcp_hw_dcp,    },
-	{ .compatible = "apple,dcpext",    .data = &apple_dcp_hw_dcpext, },
+	{ .compatible = "apple,t6020-dcp",       .data = &apple_dcp_hw_t6020,        },
+	{ .compatible = "apple,t6000-dcp",       .data = &apple_dcp_hw_t8103,        },
+	{ .compatible = "apple,t8112-dcp",       .data = &apple_dcp_hw_t8112,        },
+	{ .compatible = "apple,t8103-dcp",       .data = &apple_dcp_hw_t8103,        },
+	{ .compatible = "apple,dcp",             .data = &apple_dcp_hw_dcp,          },
+	{ .compatible = "apple,t6020-dcpext",    .data = &apple_dcp_hw_dcpext_t8112, },
+	{ .compatible = "apple,t6000-dcpext",    .data = &apple_dcp_hw_dcpext_t8103, },
+	{ .compatible = "apple,t8112-dcpext",    .data = &apple_dcp_hw_dcpext_t8112, },
+	{ .compatible = "apple,t8103-dcpext",    .data = &apple_dcp_hw_dcpext_t8103, },
+	{ .compatible = "apple,dcpext",          .data = &apple_dcp_hw_dcpext,       },
 	{}
 };
 MODULE_DEVICE_TABLE(of, of_match);
