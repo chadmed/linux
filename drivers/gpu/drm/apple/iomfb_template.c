@@ -1263,7 +1263,7 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	dcp->during_modeset = true;
 
 	if (mode->vrr)
-		dcp_set_adaptive_sync(dcp, mode->min_vrr, cookie);
+		dcp_set_adaptive_sync(dcp, crtc_state->vrr_enabled ? mode->min_vrr : 0, cookie);
 	else
 		dcp_set_digital_out_mode(dcp, false, &dcp->mode,
 					 complete_set_digital_out_mode, cookie);
@@ -1294,6 +1294,7 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 			jiffies_to_msecs(ret));
 	}
 	dcp->valid_mode = true;
+	dcp->vrr_enabled = crtc_state->vrr_enabled;
 
 	return 0;
 }

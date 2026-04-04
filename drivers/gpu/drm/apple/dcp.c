@@ -361,6 +361,10 @@ int dcp_crtc_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		return -EINVAL;
 	}
 
+	if (dcp->vrr_enabled != crtc_state->vrr_enabled) {
+		crtc_state->mode_changed = true;
+	}
+
 	return 0;
 }
 
