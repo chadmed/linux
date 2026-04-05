@@ -1280,7 +1280,7 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	};
 
 	/* Keep track of suspected vrr modes */
-	dcp->use_timestamps = mode->vrr;
+	dcp->use_timestamps = (mode->vrr && dcp->main_display) || dcp->vrr_enabled;
 
 	cookie = kzalloc(sizeof(*cookie), GFP_KERNEL);
 	if (!cookie) {
