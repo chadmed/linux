@@ -784,21 +784,6 @@ static void dcp_on_set_power_state(struct apple_dcp *dcp, void *out, void *cooki
 	dcp_set_power_state(dcp, false, &req, dcp_on_final, cookie);
 }
 
-static void dcp_on_set_parameter(struct apple_dcp *dcp, void *out, void *cookie)
-{
-	struct dcp_set_parameter_dcp param = {
-		.param = IOMFBPARAM_ADAPTIVE_SYNC,
-		.value = { 0 },
-#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
-		.count = 3,
-#else
-		.count = 1,
-#endif
-	};
-
-	dcp_set_parameter_dcp(dcp, false, &param, dcp_on_set_power_state, cookie);
-}
-
 void DCP_FW_NAME(iomfb_poweron)(struct apple_dcp *dcp)
 {
 	struct dcp_wait_cookie *cookie;
@@ -815,15 +800,11 @@ void DCP_FW_NAME(iomfb_poweron)(struct apple_dcp *dcp)
 	/* increase refcount to ensure the receiver has a reference */
 	kref_get(&cookie->refcount);
 
-	if (dcp->main_display) {
-		handle = 0;
-		dcp_set_display_device(dcp, false, &handle, dcp_on_set_power_state,
-				       cookie);
-	} else {
-		handle = 2;
-		dcp_set_display_device(dcp, false, &handle,
-				       dcp_on_set_parameter, cookie);
-	}
+	handle = dcp->main_display ? 0 : 2;
+
+	dcp_set_display_device(dcp, false, &handle, dcp_on_set_power_state,
+			       cookie);
+
 	ret = wait_for_completion_timeout(&cookie->done, msecs_to_jiffies(10000));
 
 	if (ret == 0) {
