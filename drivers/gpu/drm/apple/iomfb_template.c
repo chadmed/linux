@@ -34,6 +34,8 @@
 /* Register defines used in bandwidth setup structure */
 #define REG_DOORBELL_BIT(idx) (2 + (idx))
 
+extern bool force_vrr;
+
 struct dcp_wait_cookie {
 	struct kref refcount;
 	struct completion done;
@@ -546,9 +548,9 @@ static u8 dcpep_cb_prop_chunk(struct apple_dcp *dcp,
 static bool dcpep_process_chunks(struct apple_dcp *dcp,
 				 struct dcp_set_dcpav_prop_end_req *req)
 {
-	struct apple_connector *connector = dcp->connector;
+	// struct apple_connector *connector = dcp->connector;
 	struct dcp_parse_ctx ctx;
-	int ret, i;
+	int ret; //, i;
 
 	if (!dcp->chunks.data) {
 		dev_warn(dcp->dev, "ignoring spurious end\n");
@@ -590,14 +592,14 @@ static bool dcpep_process_chunks(struct apple_dcp *dcp,
 		dcp_set_dimensions(dcp);
 	}
 
-	if (connector) {
-		for (i = 0; i < dcp->nr_modes; i++) {
-			if (dcp->modes[i].vrr) {
-				drm_connector_set_vrr_capable_property(&connector->base, true);
-				break;
-			}
-		}
-	}
+	// if (connector) {
+	// 	for (i = 0; i < dcp->nr_modes; i++) {
+	// 		if (dcp->modes[i].vrr) {
+	// 			drm_connector_set_vrr_capable_property(&connector->base, true);
+	// 			break;
+	// 		}
+	// 	}
+	// }
 
 	return true;
 }
@@ -1262,11 +1264,12 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 
 	dcp->during_modeset = true;
 
-	if (mode->vrr)
-		dcp_set_adaptive_sync(dcp, crtc_state->vrr_enabled ? mode->min_vrr : 0, cookie);
-	else
+	if (mode->vrr) {
+		dcp_set_adaptive_sync(dcp, force_vrr ? mode->min_vrr : 0, cookie);
+	} else {
 		dcp_set_digital_out_mode(dcp, false, &dcp->mode,
 					 complete_set_digital_out_mode, cookie);
+	}
 
 	/*
 	 * The DCP firmware has an internal timeout of ~8 seconds for
@@ -1294,7 +1297,7 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 			jiffies_to_msecs(ret));
 	}
 	dcp->valid_mode = true;
-	dcp->vrr_enabled = crtc_state->vrr_enabled;
+	dcp->vrr_enabled = mode->vrr && force_vrr;
 
 	return 0;
 }
@@ -1422,7 +1425,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		req->clear = 1;
 	}
 
-	if (has_surface && (dcp->use_timestamps || crtc_state->vrr_enabled)) {
+	if (has_surface && (dcp->use_timestamps || crtc_state->vrr_enabled || force_vrr)) {
 		/*
 		 * TODO: ascertain with certainty what these timestamps
 		 * are. They are something to do with presentation timing,
