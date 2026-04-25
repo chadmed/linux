@@ -633,6 +633,9 @@ static int tas2770_read_die_temp(struct tas2770_priv *tas2770, long *result)
 	 * value read back from its registers will be the last value sampled
 	 * before entering software shutdown.
 	 */
+	if (reading == 0)
+		return -ENODATA;
+
 	*result = (reading - (93 * 16)) * 1000 / 16;
 	return 0;
 }
@@ -646,6 +649,7 @@ static umode_t tas2770_hwmon_is_visible(const void *data,
 
 	switch (attr) {
 	case hwmon_temp_input:
+	case hwmon_temp_fault:
 		return 0444;
 	default:
 		break;
@@ -665,6 +669,13 @@ static int tas2770_hwmon_read(struct device *dev,
 	case hwmon_temp_input:
 		ret = tas2770_read_die_temp(tas2770, val);
 		break;
+	case hwmon_temp_fault:
+		ret = tas2770_read_die_temp(tas2770, val);
+		if (ret == -ENODATA) {
+			*val = true;
+			return 0;
+		}
+		break;
 	default:
 		ret = -EOPNOTSUPP;
 		break;
@@ -674,7 +685,7 @@ static int tas2770_hwmon_read(struct device *dev,
 }
 
 static const struct hwmon_channel_info *const tas2770_hwmon_info[] = {
-	HWMON_CHANNEL_INFO(temp, HWMON_T_INPUT),
+	HWMON_CHANNEL_INFO(temp, HWMON_T_INPUT | HWMON_T_FAULT),
 	NULL
 };
 
