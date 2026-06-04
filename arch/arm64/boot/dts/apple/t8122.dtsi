@@ -545,9 +545,9 @@
 			#sound-dai-cells = <1>;
 		};
 
-		nco: clock-controller@2c0044000 {
+		nco: clock-controller@2d0044000 {
 			compatible = "apple,t8122-nco", "apple,t8103-nco";
-			reg = <0x2 0xc0044000 0x0 0x14000>;
+			reg = <0x2 0xd0044000 0x0 0x14000>;
 			clocks = <&nco_clkref>;
 			#clock-cells = <1>;
 		};
