@@ -5,6 +5,35 @@
  *
  * Copyright The Asahi Linux Contributors
  */
+	avd: avd@286000000 {
+		compatible =  "apple,t6020-avd";
+		interrupt-parent = <&aic>;
+		interrupts = <AIC_IRQ 0 1088 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 1089 IRQ_TYPE_LEVEL_HIGH>;
+		#ifdef APPLE_USE_PMP
+		power-domains = <&pmp_report_avd_sys>;
+		#else
+		power-domains = <&ps_avd_sys>;
+		#endif
+		resets = <&ps_avd_sys>;
+		reg = <0x2 0x86000000 0x0 0x1010000>,
+			<0x2 0x87080000 0x0 0x10000>,
+			<0x2 0x87090000 0x0 0x10000>,
+			<0x2 0x870a0000 0x0 0x4000>,
+			<0x2 0x87100000 0x0 0x10000>,
+			<0x2 0x87400000 0x0 0x4000>;
+		reg-names = "base", "code", "sram", "mbox", "ctrl", "wrap";
+		iommus = <&avd_dart 0>;
+	};
+
+	avd_dart: iommu@287010000 {
+		compatible = "apple,t6020-dart", "apple,t8110-dart";
+		reg = <0x2 0x87010000 0x0 0x4000>;
+		#iommu-cells = <1>;
+		interrupt-parent = <&aic>;
+		interrupts = <AIC_IRQ 0 1095 IRQ_TYPE_LEVEL_HIGH>;
+		power-domains = <&ps_avd_sys>;
+	};
 
 	nco: clock-controller@28e03c000 {
 		compatible = "apple,t6020-nco", "apple,t8103-nco", "apple,nco";
@@ -115,7 +144,6 @@
 			label = "pmp-avd-sys";
 			#power-domain-cells = <0>;
 			power-domains = <&ps_avd_sys>;
-			status = "disabled";
 		};
 
 		pmp_report_msr0: report@12 {
