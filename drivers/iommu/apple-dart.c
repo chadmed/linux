@@ -1572,6 +1572,56 @@ static const struct apple_dart_hw apple_dart_hw_t8110 = {
 	.ttbr_count = 1,
 };
 
+/* HACK */
+void iommu_reset_dev(struct iommu_domain *domain) {
+	struct apple_dart_domain *dart_domain = to_dart_domain(domain);
+	struct apple_dart_atomic_stream_map *domain_stream_map;
+	struct apple_dart *dart;
+	unsigned int sid, idx;
+	int i;
+
+	for_each_stream_map(i, dart_domain, domain_stream_map) {
+		dart = domain_stream_map->dart;
+		if (!dart || dart->locked)
+			continue;
+
+		for (sid = 0; sid < dart->num_streams; sid++) {
+			dart->save_tcr[sid] = readl(dart->regs + DART_TCR(dart, sid));
+			for (idx = 0; idx < dart->hw->ttbr_count; idx++)
+				dart->save_ttbr[sid][idx] =
+					readl(dart->regs + DART_TTBR(dart, sid, idx));
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(iommu_reset_dev);
+void iommu_restore_dev(struct iommu_domain *domain) {
+	struct apple_dart_domain *dart_domain = to_dart_domain(domain);
+	struct apple_dart_atomic_stream_map *domain_stream_map;
+	struct apple_dart *dart;
+	unsigned int sid, idx;
+	int i, ret;
+
+	for_each_stream_map(i, dart_domain, domain_stream_map) {
+		dart = domain_stream_map->dart;
+		if (!dart || dart->locked)
+			continue;
+
+		ret = apple_dart_hw_reset(dart);
+		if (ret) {
+			dev_err(dart->dev, "Failed to reset DART on resume\n");
+			continue;
+		}
+
+		for (sid = 0; sid < dart->num_streams; sid++) {
+			for (idx = 0; idx < dart->hw->ttbr_count; idx++)
+				writel(dart->save_ttbr[sid][idx],
+						dart->regs + DART_TTBR(dart, sid, idx));
+			writel(dart->save_tcr[sid], dart->regs + DART_TCR(dart, sid));
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(iommu_restore_dev);
+
 static __maybe_unused int apple_dart_suspend(struct device *dev)
 {
 	struct apple_dart *dart = dev_get_drvdata(dev);

@@ -1730,5 +1730,11 @@ static inline void iopf_group_response(struct iopf_group *group,
 				       enum iommu_page_response_code status)
 {
 }
+
+
+/* HACK */
+void iommu_reset_dev(struct iommu_domain *domain);
+void iommu_restore_dev(struct iommu_domain *domain);
+
 #endif /* CONFIG_IOMMU_IOPF */
 #endif /* __LINUX_IOMMU_H */
