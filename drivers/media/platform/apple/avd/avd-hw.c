@@ -1,0 +1,524 @@
+#include "linux/dev_printk.h"
+#include <linux/delay.h>
+
+#include "avd.h"
+
+#define MCPU_BOOT_TRY 1000
+
+#define INST_OFF(idx) (0x1c8 + (idx * 4)) /* bytes of instructions written */
+#define INST_NUM 0x141c /* number of instructions since last submit ? */
+#define ADDR_LOW(idx) (0x150 + (idx * 4))
+#define ADDR_HIGH(idx) (0x30c + (idx * 4))
+
+/*
+ * MAX for a fifo ? not sure what to call it
+ * NUM number of instructions not parsed. ?
+ *     if num == max new instructions are lost ?
+ * */
+#define MAXC1 0x44
+#define NUMC1 0x6c
+
+#define MAX30 0x58
+#define NUM30 0x80
+
+/* sorry for all the "magic" numbers in this file */
+
+static void apply_tunatables(struct avd_dev *avd)
+{
+#define w32(off, val) (avd_w32(ctrl, off, val))
+	w32(0x0008, 0x80000000);
+	w32(0x1000, 0x80000000);
+	w32(0x1100, 0x80000000);
+	w32(0x1200, 0x80000000);
+	w32(0x1300, 0x80000000);
+	w32(0x1400, 0x80000000);
+	w32(0x1500, 0x80000000);
+	w32(0x1600, 0x80000000);
+	w32(0x1700, 0x80000000);
+	w32(0x1800, 0x80000000);
+	w32(0x4000, 0x80000000);
+	w32(0x4100, 0x80000000);
+	w32(0x4200, 0x80000000);
+	w32(0x4300, 0x80000000);
+	w32(0x4400, 0x80000000);
+	w32(0x4500, 0x80000000);
+	w32(0x4600, 0x80000000);
+	w32(0xc000, 0x1);
+	w32(0xc080, 0x800107ff);
+	w32(0xc084, 0x28);
+	w32(0xc0c0, 0x800107ff);
+	w32(0xc0c4, 0x280028);
+	w32(0xc100, 0x800107ff);
+	w32(0xc104, 0x500028);
+	w32(0xc140, 0x800107ff);
+	w32(0xc144, 0x780028);
+	w32(0xc180, 0x800107ff);
+	w32(0xc184, 0x520028);
+	w32(0xc1c0, 0x800107ff);
+	w32(0xc1c4, 0x7a0028);
+	w32(0xc200, 0x800107ff);
+	w32(0xc204, 0xa20028);
+	w32(0xc240, 0x800107ff);
+	w32(0xc244, 0xca0028);
+	w32(0xc280, 0x800107ff);
+	w32(0xc284, 0xa00020);
+	w32(0xc2c0, 0x800107ff);
+	w32(0xc2c4, 0xc00020);
+	w32(0xc300, 0x800107ff);
+	w32(0xc304, 0xe00020);
+	w32(0xc340, 0x800107ff);
+	w32(0xc344, 0x1000020);
+	w32(0xc380, 0x800107ff);
+	w32(0xc384, 0xa);
+	w32(0xc3c0, 0x800107ff);
+	w32(0xc3c4, 0xa000a);
+	w32(0xc400, 0x800107ff);
+	w32(0xc404, 0x14000a);
+	w32(0xc440, 0x800107ff);
+	w32(0xc444, 0x1e000a);
+	w32(0xc480, 0x800107ff);
+	w32(0xc484, 0x120000c);
+	w32(0xc4c0, 0x800107ff);
+	w32(0xc4c4, 0x12c000c);
+	w32(0xc500, 0x800107ff);
+	w32(0xc504, 0x138000c);
+	w32(0xc540, 0x800107ff);
+	w32(0xc544, 0x144000c);
+	w32(0xc580, 0x800107ff);
+	w32(0xc584, 0xf20020);
+	w32(0xc5c0, 0x800107ff);
+	w32(0xc5c4, 0x1120020);
+	w32(0xc600, 0x800107ff);
+	w32(0xc604, 0x1320020);
+	w32(0xc640, 0x800107ff);
+	w32(0xc644, 0x1520020);
+	w32(0xc680, 0x800107ff);
+	w32(0xc684, 0x1500018);
+	w32(0xc6c0, 0x800107ff);
+	w32(0xc6c4, 0x28000a);
+	w32(0xc700, 0x800107ff);
+	w32(0xc704, 0x168000e);
+	w32(0xc740, 0x800107ff);
+	w32(0xc744, 0x32000a);
+	w32(0xc780, 0x800107ff);
+	w32(0xc784, 0x176000a);
+	w32(0xc7c0, 0x800107ff);
+	w32(0xc7c4, 0x3c000c);
+	w32(0xc800, 0x800107ff);
+	w32(0xc804, 0x1800012);
+	w32(0xc840, 0x800107ff);
+	w32(0xc844, 0x48000a);
+	w32(0xc880, 0x800107ff);
+	w32(0xc884, 0x192000a);
+	w32(0xc8c0, 0x800107ff);
+	w32(0xc8c4, 0x1720018);
+	w32(0xc900, 0x800113ff);
+	w32(0xc904, 0x19c011c);
+	w32(0xc940, 0x800113ff);
+	w32(0xc944, 0x2b8011c);
+	w32(0xc980, 0x800113ff);
+	w32(0xc984, 0x3d4011c);
+	w32(0xc9c0, 0x800113ff);
+	w32(0xc9c4, 0x4f0011c);
+	w32(0xe000, 0x1);
+	w32(0xe080, 0x800207ff);
+	w32(0xe084, 0x1c);
+	w32(0xe0c0, 0x800207ff);
+	w32(0xe0c4, 0x2e);
+	w32(0xe100, 0x800207ff);
+	w32(0xe104, 0x1c0054);
+	w32(0xe140, 0x800207ff);
+	w32(0xe144, 0x2e009e);
+	w32(0xe180, 0x800207ff);
+	w32(0xe184, 0x700016);
+	w32(0xe1c0, 0x800207ff);
+	w32(0xe1c4, 0xcc0022);
+	w32(0xe200, 0x800207ff);
+	w32(0xe204, 0x860020);
+	w32(0xe240, 0x800207ff);
+	w32(0xe244, 0xee0020);
+	w32(0xe280, 0x800207ff);
+	w32(0xe284, 0xa6000c);
+	w32(0xe2c0, 0x800207ff);
+	w32(0xe2c4, 0x10e000c);
+	w32(0xe300, 0x80023fff);
+	w32(0xe304, 0xc000cc);
+	w32(0xe340, 0x800207ff);
+	w32(0xe344, 0xb6000a);
+	w32(0xe380, 0x800207ff);
+	w32(0xe384, 0x11a000a);
+	w32(0xe3c0, 0x800207ff);
+	w32(0xe3c4, 0x18c0012);
+	w32(0xe400, 0x800207ff);
+	w32(0xe404, 0x1240020);
+	w32(0xe440, 0x800207ff);
+	w32(0xe444, 0x19e0068);
+	w32(0xe480, 0x800207ff);
+	w32(0xe484, 0x1440060);
+	w32(0xe4c0, 0x80034072);
+	w32(0xe4c8, 0x21e009e);
+	w32(0xe4cc, 0x206000c);
+	w32(0xe500, 0x80056072);
+	w32(0xe508, 0x2bc009e);
+	w32(0xe50c, 0x212000c);
+	w32(0xe540, 0x800207ff);
+	w32(0xe544, 0xb20004);
+	w32(0xe800, 0x1);
+	w32(0xe880, 0x800207ff);
+	w32(0xe884, 0x16);
+	w32(0xe8c0, 0x800207ff);
+	w32(0xe8c4, 0x22);
+	w32(0xe900, 0x800207ff);
+	w32(0xe904, 0x160022);
+	w32(0xe940, 0x800207ff);
+	w32(0xe944, 0x22003a);
+	w32(0xe980, 0x80770003);
+#undef w32
+}
+
+static int avd_pmgr(struct avd_dev *avd)
+{
+	/* return 0; */
+#define w32(off, v) avd_w32(base, off, v)
+#define chk(off, v)                                                    \
+	do {                                                           \
+		u32 value = avd_r32(base, off);                        \
+		if (value != v) {                                      \
+			dev_err(avd->dev,                              \
+				"avd_pmgr: check failed avd_r32(" #off \
+				") != " #v " actual: %8x",             \
+				value);                                \
+			return 0;                                      \
+		}                                                      \
+	} while (false)
+	/*
+	 * Im not sure what to make of this. Nothing changes if i delete it.
+	 *
+	 * The check is nice tho, lets me know if something went wrong somewhere
+	 * */
+
+	chk(0x000, 0x10);
+	w32(0x000, 0x11);
+	chk(0x00c, 0xfffff);
+	w32(0x00c, 0xd);
+	chk(0x010, 0x7ffff);
+	w32(0x010, 0xc);
+	chk(0x014, 0x5a0);
+	w32(0x014, 0x1);
+	chk(0x018, 0x5a0);
+	w32(0x018, 0x1);
+	chk(0x01c, 0x5a0);
+	w32(0x01c, 0x3);
+	chk(0x020, 0x5a0);
+	w32(0x020, 0x3);
+	chk(0x024, 0x5a0);
+	w32(0x024, 0x3);
+	chk(0x028, 0x5a0);
+	w32(0x028, 0x3);
+	chk(0x02c, 0x5a0);
+	w32(0x02c, 0x3);
+	chk(0x108, 0x10);
+	w32(0x108, 0x11);
+	chk(0x10c, 0xfffff);
+	w32(0x10c, 0xd);
+	chk(0x110, 0x7ffff);
+	w32(0x110, 0xc);
+	chk(0x114, 0x5a0);
+	w32(0x114, 0x1);
+	chk(0x118, 0x5a0);
+	w32(0x118, 0x1);
+	chk(0x11c, 0x5a0);
+	w32(0x11c, 0x3);
+	chk(0x120, 0x5a0);
+	w32(0x120, 0x3);
+	chk(0x124, 0x5a0);
+	w32(0x124, 0x3);
+	chk(0x128, 0x5a0);
+	w32(0x128, 0x3);
+	chk(0x12c, 0x5a0);
+	w32(0x12c, 0x3);
+	chk(0x400, 0xf00008);
+	w32(0x400, 0xc0f10010);
+	chk(0xa00, 0x0);
+	w32(0xa00, 0x1ffffff);
+
+	return 0;
+#undef chk
+#undef w32
+}
+
+int avd_boot(struct avd_dev *avd)
+{
+	int ret;
+	ret = avd_pmgr(avd);
+	if (ret)
+		return ret;
+
+	avd_w32(base, 0x1000000, 0xfff);
+	dev_info_once(avd->dev, "booting hw version: %04x", avd_r32(ctrl, 0));
+
+	// unsure if i need this
+	memset_io(avd->code, 0, 0x10000);
+	memset_io(avd->sram, 0, 0x10000);
+
+	apply_tunatables(avd);
+
+	/* needed */
+	// wrap ctrl init
+	// cm3 specifik
+	avd_w32(wrap, 0x14, 1);
+	avd_w32(wrap, 0x18, 0);
+
+	avd_w32(ctrl, 0x14c, 0x14);
+	avd_w32(ctrl, 0xe4d0, 0);
+	avd_w32(ctrl, 0xe4d4, 0);
+	avd_w32(ctrl, 0xe510, 0);
+	avd_w32(ctrl, 0xe514, 0);
+
+	avd_w32(ctrl, 0xe308, 0xffffffff);
+	avd_w32(ctrl, 0xe300, 0x80023fff);
+	avd_w32(ctrl, 0xc900, 0x800113ff);
+	avd_w32(ctrl, 0xc940, 0x800113ff);
+	avd_w32(ctrl, 0xc980, 0x800113ff);
+	avd_w32(ctrl, 0xc9c0, 0x800113ff);
+
+	avd_w32(wrap, 0x14, 0);
+
+	if (avd->fw->size != 0x10000) {
+		dev_err(avd->dev, "fw has wrong size: 0x%lx", avd->fw->size);
+		return -EINVAL;
+	}
+	memcpy_toio(avd->code, avd->fw->data, avd->fw->size);
+
+	avd_w32(mbox, 0x08, 0xe);
+	avd_w32(mbox, 0x10, 0x0);
+	avd_w32(mbox, 0x48, 0x0);
+	avd_w32(mbox, 0x10, 0x0);
+	avd_w32(mbox, 0x48, 0x0);
+	avd_w32(mbox, 0x50, 0x1);
+	avd_w32(mbox, 0x68, 0x1);
+	avd_w32(mbox, 0x5c, 0x1);
+	avd_w32(mbox, 0x74, 0x1);
+	avd_w32(mbox, 0x10, 0x2);
+	avd_w32(mbox, 0x48, 0x8);
+	avd_w32(mbox, 0x08, 0x1);
+	// i only think this is needed if we do more work on the cm3
+	for (int i = 0; i < MCPU_BOOT_TRY; i++) {
+		if (avd_r32(mbox, 0x90) == 0x1)
+			break;
+		if (i + 1 == MCPU_BOOT_TRY) {
+			return -EINVAL;
+		}
+		usleep_range(50, 100);
+	}
+	/* while r32(0x10a0090) != 0x1: */
+	/* 	self.log("waiting for cpu to boot...") */
+	avd_w32(wrap, 0x14, 0x0);
+	return 0;
+}
+void avd_shutdown(struct avd_dev *avd)
+{
+	avd_w32(mbox, 0x08, 0xe);
+	avd_w32(mbox, 0x98, 0x1);
+	avd_w32(mbox, 0x10, 0x0);
+	avd_w32(mbox, 0x48, 0x0);
+}
+
+static void avd_prepare(struct avd_dev *avd)
+{
+#define w32(off, val) (avd_w32(ctrl, off, val))
+#define r32(off) (avd_r32(ctrl, off))
+#define m32(off, val) w32(off, (val) | (r32(off)))
+
+	/* Something here is irq
+	 * It seems from status that it works */
+	/* TODO: try to remove as many as possible
+	 * Most of this stuff can be removed. __i think__
+	 *
+	 * Dont try until you remove the reset tho.
+	 * */
+	w32(0x008, 0xc0000000);
+	w32(0x120, 0);
+	w32(0x300, 0);
+
+	for (int i = 0; i < 15; i++)
+		w32(0x2b0 + (i * 4), 1);
+
+	for (int i = 0; i < 9; i++)
+		w32(0x1000 + (i * 0x100), 0xc0000000);
+
+	w32(0x8, 0xc0000000);
+	for (int i = 0; i < 7; i++)
+		w32(0x4000 + (i * 0x100), 0xc0000000);
+
+	w32(0xc000, 1);
+	w32(0xc024, 1);
+	w32(0xe000, 1);
+	w32(0xe800, 1);
+
+	m32(0xc080, 0xc0010000);
+	m32(0xc0c0, 0xc0010000);
+	m32(0xc100, 0xc0010000);
+	m32(0xc140, 0xc0010000);
+	m32(0xc180, 0xc0010000);
+	m32(0xc1c0, 0xc0010000);
+	m32(0xc200, 0xc0010000);
+	m32(0xc240, 0xc0010000);
+	m32(0xc280, 0xc0010000);
+	m32(0xc2c0, 0xc0010000);
+	m32(0xc300, 0xc0010000);
+	m32(0xc340, 0xc0010000);
+	m32(0xc380, 0xc0010000);
+	m32(0xc3c0, 0xc0010000);
+	m32(0xc400, 0xc0010000);
+	m32(0xc440, 0xc0010000);
+	m32(0xc480, 0xc0010000);
+	m32(0xc4c0, 0xc0010000);
+	m32(0xc500, 0xc0010000);
+	m32(0xc540, 0xc0010000);
+	m32(0xc580, 0xc0010000);
+	m32(0xc5c0, 0xc0010000);
+	m32(0xc600, 0xc0010000);
+	m32(0xc640, 0xc0010000);
+	m32(0xc680, 0xc0010000);
+	m32(0xc6c0, 0xc0010000);
+	m32(0xc700, 0xc0010000);
+	m32(0xc740, 0xc0010000);
+	m32(0xc780, 0xc0010000);
+	m32(0xc7c0, 0xc0010000);
+	m32(0xc800, 0xc0010000);
+	m32(0xc840, 0xc0010000);
+	m32(0xc880, 0xc0010000);
+	m32(0xc8c0, 0xc0010000);
+	m32(0xc900, 0xc0010000);
+	m32(0xc940, 0xc0010000);
+	m32(0xc980, 0xc0010000);
+	m32(0xc9c0, 0xc0010000);
+	m32(0xe880, 0xc0020000);
+	m32(0xe8c0, 0xc0020000);
+	m32(0xe900, 0xc0020000);
+	m32(0xe940, 0xc0020000);
+	m32(0xe080, 0xc0020000);
+	m32(0xe0c0, 0xc0020000);
+	m32(0xe100, 0xc0020000);
+	m32(0xe140, 0xc0020000);
+	m32(0xe180, 0xc0020000);
+	m32(0xe1c0, 0xc0020000);
+	m32(0xe200, 0xc0020000);
+	m32(0xe240, 0xc0020000);
+	m32(0xe280, 0xc0020000);
+	m32(0xe2c0, 0xc0020000);
+	m32(0xe300, 0xc0020000);
+	m32(0xe340, 0xc0020000);
+	m32(0xe380, 0xc0020000);
+	m32(0xe3c0, 0xc0020000);
+	m32(0xe400, 0xc0020000);
+	m32(0xe440, 0xc0020000);
+	m32(0xe480, 0xc0020000);
+	m32(0xe4c0, 0xc0034000);
+	m32(0xe500, 0xc0056000);
+	m32(0xe980, 0xc0770003);
+	m32(0xe540, 0xc0020000);
+
+	/* if you dont count the 3 weird ones, its 64 writes */
+	for (int i = 0; i < 0x26; i++)
+		w32(0xc090 + (i * 0x40), i);
+	for (int i = 0; i < 0x10; i++)
+		w32(0xe090 + (i * 0x40), i + 0x26);
+	w32(0xe4ec, 0x3738); /* two in one? */
+	w32(0xe52c, 0x393a);
+	w32(0xe550, 0x3b);
+	w32(0xe890, 0x3c);
+	w32(0xe8d0, 0x3d);
+	w32(0xe910, 0x3e);
+	w32(0xe950, 0x3f);
+	w32(0xe9a8, 0x40414243); /* tree in one? */
+}
+
+void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx)
+{
+	/* sanity checks */
+	if (((addr >> 32) & 0x3ff) != (addr >> 32) ||
+	    (addr & 0xffffffff) != (addr & 0xffffff00))
+		dev_err(avd->dev, "configure_stream: invalid addres %llx",
+			addr);
+
+	if (fifo_idx > 0xf) {
+		dev_err(avd->dev, "configure_stream: invalid fifo index %d",
+			fifo_idx);
+		return;
+	}
+
+	avd_prepare(avd);
+
+	w32(ADDR_LOW(fifo_idx), addr & 0xffffffff);
+	w32(ADDR_HIGH(fifo_idx), addr >> 32);
+	/* unkown AVD_VP_INSN_FIFO_MASK */
+	w32(0x18c + (fifo_idx * 4), 0);
+	/* unkown AVD_VP_INSN_FIFO_CACH */
+	w32(0x204 + (fifo_idx * 4), 0);
+	w32(INST_OFF(fifo_idx), 0); /* clear instruction offset */
+
+	/* w32(0x84, 0); /1* starts here?  *1/ */
+	w32(0x84, 0); /* guess */
+	w32(0x88, 0);
+	w32(0x8c, 0);
+	w32(0x90, 0);
+
+	w32(0x94, 0); /* vp4 */
+	w32(0x98, 0);
+	w32(0x9c, 0);
+	w32(0xa0, 0);
+
+	w32(0xa4, 0);
+
+	/* cm3 irq masks? bit 4 is empty.
+	 * i think all theese are vp
+	 * */
+	m32(0x0fc, 7); /* if forgot to check :( but should be 0 */
+	m32(0x100, 7); /*  86 */
+	m32(0x104, 7); /*  91 */
+	m32(0x108, 7); /*  96 */
+
+	m32(0x10c, 7); /* 101 */
+	m32(0x110, 7); /* 106 */
+	m32(0x114, 7); /* 111 */
+	m32(0x118, 7); /* 116 */
+
+	m32(0x11c, 7); /* 121 */
+
+	/* i think this is pp's iq mask */
+	m32(0x120, 5); /*  65 */
+}
+
+/* debug functions */
+void avd_status(struct avd_dev *avd)
+{
+	u32 start = 0x140c;
+	/*
+	 * 0x140c status bitmask 8 is no errors?
+	 * 0x1410 looks like sl->first_mb_in_slice
+	 * 0x1414 another status bitmask? 0x3f on succes? 0x40 on error?
+	 * 0x1418 slice bytes read? is almost never the same as hdr_size written
+	 * */
+
+	dev_info(avd->dev, "status: %08x %08x %08x %08x", r32(start),
+		 r32(start + 4), r32(start + 8), r32(start + 12));
+	if (r32(NUMC1) == r32(MAXC1))
+		/* instruction cache? no clue */
+		dev_err(avd->dev, "instruction cache full! %02x/%02x",
+			r32(NUMC1), r32(MAXC1));
+	dev_info(avd->dev, "inst: num: %08x 30: %02x/%02x", r32(INST_NUM),
+		 r32(NUM30), r32(MAX30));
+}
+
+/* im not sure if its vp cache, its fatal?
+ * cm3 sets vp empty interupt when this happens, no clue why, it never recovers
+ * */
+bool avd_vp_cache_full(struct avd_dev *avd)
+{
+	return r32(NUMC1) == r32(MAXC1);
+}
+#undef w32
+#undef r32
+#undef m32

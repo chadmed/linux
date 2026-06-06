@@ -1,0 +1,602 @@
+#include "linux/videodev2.h"
+#include <linux/clk.h>
+#include <linux/interrupt.h>
+#include <linux/io.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_platform.h>
+#include <linux/platform_device.h>
+#include <linux/pm.h>
+#include <linux/pm_runtime.h>
+#include <linux/slab.h>
+#include <linux/videodev2.h>
+#include <linux/workqueue.h>
+#include <linux/iommu.h>
+#include <linux/genalloc.h>
+#include <linux/reset.h>
+
+#include <media/v4l2-ctrls.h>
+#include <media/v4l2-dev.h>
+#include <media/v4l2-device.h>
+#include <media/v4l2-event.h>
+#include <media/v4l2-ioctl.h>
+#include <media/v4l2-mem2mem.h>
+#include <media/v4l2-h264.h>
+
+#include <media/videobuf2-core.h>
+#include <media/videobuf2-dma-contig.h>
+#include <media/videobuf2-v4l2.h>
+
+/* debug */
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+#include <linux/delay.h>
+
+#include "avd.h"
+#include "avd-inst.h"
+
+int avd_buf_alloc(struct avd_dev *avd, struct avd_buf *buf, size_t size)
+{
+	buf->size = size;
+	buf->cpu =
+		dma_alloc_coherent(avd->dev, buf->size, &buf->addr, GFP_KERNEL);
+	return buf->cpu ? 0 : -ENOMEM;
+}
+
+void avd_buf_free(struct avd_dev *avd, struct avd_buf *buf)
+{
+	if (buf->cpu)
+		dma_free_coherent(avd->dev, buf->size, buf->cpu, buf->addr);
+	memset(buf, 0, sizeof(*buf));
+}
+
+static int avd_reset(struct avd_dev *avd)
+{
+	int ret;
+	if (pm_runtime_suspended(avd->dev))
+		return -EINVAL;
+
+	iommu_reset_dev(avd->domain);
+
+	ret = reset_control_reset(avd->rstc);
+	if (ret) {
+		dev_err(avd->dev, "reset: failed: %d", ret);
+		return ret;
+	}
+
+	iommu_restore_dev(avd->domain);
+
+	ret = avd_boot(avd);
+	if (ret)
+		dev_err(avd->dev, "reset: failed to boot");
+
+	return ret;
+}
+
+static void avd_err_func(struct work_struct *work)
+{
+	struct avd_dev *avd = container_of(work, struct avd_dev, err_work);
+	int ret;
+	mutex_lock(&avd->dev_mutex);
+
+	/* u32 status = avd_r32(ctrl, 0x1414); */
+	/* /1* 00010110 no tbtr dma error (other status) *1/ */
+	/* if (!((status & 0x40) || avd_vp_cache_full(avd))) { */
+	/* 	/1* no error! *1/ */
+	/* 	goto done; */
+	/* } */
+
+	ret = avd_reset(avd);
+	if (ret)
+		dev_err(avd->dev, "failed to reset: %d", ret);
+
+	/* TODO */
+	avd->vp_slots = 0;
+
+	mutex_unlock(&avd->dev_mutex);
+}
+
+static irqreturn_t avd_irq_handler(int irq, void *data)
+{
+	struct avd_dev *avd = data;
+	struct avd_ctx *ctx = v4l2_m2m_get_curr_priv(avd->m2m_dev);
+
+	enum vb2_buffer_state state;
+	u32 status;
+	if (!ctx)
+		return IRQ_HANDLED;
+
+	status = avd_r32(mbox, 0x64);
+
+	avd_w32(mbox, 0x4c, 0x8); /* clear mbox */
+
+	if (status & 0x1000) {
+		/* pp is done ! we are done*/
+		/* dev_info(avd->dev, "PP done!"); */
+		state = VB2_BUF_STATE_DONE;
+	} else if (status & 0x100) {
+		clear_bit((status & 0xf) - 4, &avd->vp_slots);
+
+		if (ctx->vp_slot != (status & 0xf))
+			dev_err(avd->dev, "VP mismatch ctx vp: %d actual: %d",
+				ctx->vp_slot, status & 0xf);
+
+		ctx->vp_slot = VP_SLOT_NONE;
+		/* a vp is done, kick the pp and hope for the best */
+		/* dev_info(avd->dev, "VP%d done", (status & 0xf)); */
+
+		/* clang-format off */
+		avd_w32(ctrl, 0x30,
+				0x2b000000
+				| 0x200
+				| ((ctx->fifo_idx & 0xf) << 4)
+				| 0xf);
+		/* clang-format done */
+		goto done;
+	} else {
+		/* dev_err(avd->dev, "H%d error %d", status, ctx->fifo_idx); */
+		if (ctx->vp_slot != VP_SLOT_NONE) {
+			if (ctx->vp_slot != (status & 0xf))
+				dev_err(avd->dev,
+					"VP mismatch ctx vp: %d actual: %d",
+					ctx->vp_slot, status & 0xf);
+
+			ctx->vp_slot = VP_SLOT_NONE;
+		}
+
+		/* use the status as that is the absolute truth */
+		clear_bit(status - 4, &avd->vp_slots);
+
+		/* avd_status(avd); */
+		schedule_work(&avd->err_work);
+
+		state = VB2_BUF_STATE_ERROR;
+	}
+
+	/* if the watchdog_work has run the work has already been submitted */
+	if (cancel_delayed_work(&avd->watchdog_work))
+		avd_job_finish(ctx, state);
+
+done:
+	return IRQ_HANDLED;
+}
+
+static void avd_device_run(void *priv)
+{
+	struct avd_ctx *ctx = priv;
+	struct avd_dev *avd = ctx->dev;
+	const struct avd_coded_fmt_desc *desc = ctx->coded_fmt_desc;
+	int ret;
+
+	if (WARN_ON(!desc))
+		return;
+
+	ret = pm_runtime_resume_and_get(avd->dev);
+	if (ret < 0) {
+		avd_job_finish_no_pm(ctx, VB2_BUF_STATE_ERROR);
+		return;
+	}
+
+	/*
+	 * Hack: reset state on each new frame.
+	 */
+	if (ctx->fh.m2m_ctx->new_frame)
+		schedule_work(&avd->err_work);
+
+	flush_work(&avd->err_work);
+
+	mutex_lock(&avd->dev_mutex);
+
+	/* this is very clunky */
+	if (ctx->fh.m2m_ctx->new_frame) {
+		u8 free = find_first_zero_bit(&avd->vp_slots, VP_SLOT_NUM);
+
+		if (free == VP_SLOT_NUM) {
+			ctx->vp_slot = VP_SLOT_NONE;
+			dev_err(avd->dev, "no free vp slots");
+		} else {
+			/* dev_info(avd->dev, "assigned vp: %d", free+4); */
+			set_bit(free, &avd->vp_slots);
+
+			ctx->vp_slot = free + 4;
+			/* I dont fully understand this. As far as i can tell this has no
+			 * usefull effect unless vp_slot is also set */
+			ctx->fifo_idx = free;
+		}
+	}
+
+	if (ctx->vp_slot == VP_SLOT_NONE) {
+		avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
+		goto mutex_unlock;
+	}
+
+	ret = desc->ops->run(ctx);
+	if (ret) {
+		avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
+		clear_bit(ctx->vp_slot - 4, &avd->vp_slots);
+		ctx->vp_slot = VP_SLOT_NONE;
+	}
+
+mutex_unlock:
+	mutex_unlock(&avd->dev_mutex);
+	return;
+}
+
+static int avd_queue_init(void *priv, struct vb2_queue *src_vq,
+			  struct vb2_queue *dst_vq)
+{
+	struct avd_ctx *ctx = priv;
+	int ret;
+
+	/* TODO: what flags to give to dart */
+	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	src_vq->io_modes = VB2_MMAP | VB2_DMABUF;
+	src_vq->drv_priv = ctx;
+	src_vq->ops = &avd_queue_ops;
+	src_vq->mem_ops = &vb2_dma_contig_memops;
+
+	src_vq->dma_attrs = 0 /* DMA_ATTR_NO_KERNEL_MAPPING */;
+	src_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+	src_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
+	src_vq->lock = &ctx->dev->vdev_lock;
+	src_vq->dev = ctx->dev->v4l2_dev.dev;
+	src_vq->supports_requests = true;
+
+	ret = vb2_queue_init(src_vq);
+	if (ret)
+		return ret;
+
+	dst_vq->bidirectional = true;
+	dst_vq->mem_ops = &vb2_dma_contig_memops;
+	dst_vq->dma_attrs = 0; // DMA_ATTR_ALLOC_SINGLE_PAGES;
+
+	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	dst_vq->io_modes = VB2_MMAP | VB2_DMABUF;
+	dst_vq->drv_priv = ctx;
+	dst_vq->ops = &avd_queue_ops;
+	dst_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
+	dst_vq->lock = &ctx->dev->vdev_lock;
+	dst_vq->dev = ctx->dev->v4l2_dev.dev;
+
+	return vb2_queue_init(dst_vq);
+}
+
+static void avd_watchdog_func(struct work_struct *work)
+{
+	struct avd_dev *avd;
+	struct avd_ctx *ctx;
+	/* int ret; */
+	avd = container_of(to_delayed_work(work), struct avd_dev,
+			   watchdog_work);
+
+	ctx = v4l2_m2m_get_curr_priv(avd->m2m_dev);
+	dev_err(avd->dev, "Frame processing timed out! Vp: %d", ctx->vp_slot);
+	if (ctx->vp_slot != VP_SLOT_NONE) {
+		/* dev_info(avd->dev, "clearing vp %d", ctx->vp_slot); */
+		clear_bit(ctx->vp_slot - 4, &avd->vp_slots);
+		ctx->vp_slot = VP_SLOT_NONE;
+	}
+
+	if (avd_vp_cache_full(avd))
+		schedule_work(&avd->err_work);
+
+	/* to reset or not */
+	/* ret = avd_reset(avd); */
+	/* if (ret) */
+	/* 	dev_err(avd->dev, "Failed to reset! %d", ret); */
+
+	avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
+}
+
+static int avd_open(struct file *filp)
+{
+	struct avd_dev *avd = video_drvdata(filp);
+	struct avd_ctx *ctx;
+	int ret;
+
+	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	if (!ctx)
+		return -ENOMEM;
+
+	ctx->dev = avd;
+
+	avd_reset_coded_fmt(ctx);
+	avd_reset_decoded_fmt(ctx);
+
+	v4l2_fh_init(&ctx->fh, video_devdata(filp));
+
+	ctx->fh.m2m_ctx = v4l2_m2m_ctx_init(avd->m2m_dev, ctx, avd_queue_init);
+	if (IS_ERR(ctx->fh.m2m_ctx)) {
+		ret = PTR_ERR(ctx->fh.m2m_ctx);
+		goto err_free_ctx;
+	}
+
+	ret = avd_init_ctrls(ctx);
+	if (ret)
+		goto err_cleanup_m2m_ctx;
+
+	v4l2_fh_add(&ctx->fh, filp);
+
+	return 0;
+
+err_cleanup_m2m_ctx:
+	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
+
+err_free_ctx:
+	kfree(ctx);
+	return ret;
+}
+
+static int avd_release(struct file *filp)
+{
+	struct avd_ctx *ctx = file_to_ctx(filp);
+
+	v4l2_fh_del(&ctx->fh, filp);
+	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
+	v4l2_ctrl_handler_free(&ctx->ctrl_hdl);
+	v4l2_fh_exit(&ctx->fh);
+	kfree(ctx);
+
+	return 0;
+}
+
+static const struct v4l2_file_operations avd_fops = {
+	.owner = THIS_MODULE,
+	.open = avd_open,
+	.release = avd_release,
+	.poll = v4l2_m2m_fop_poll,
+	.unlocked_ioctl = video_ioctl2,
+	.mmap = v4l2_m2m_fop_mmap,
+};
+
+static const struct v4l2_m2m_ops avd_m2m_ops = {
+	.device_run = avd_device_run,
+};
+
+static const struct media_device_ops avd_media_ops = {
+	.req_validate = vb2_request_validate,
+	.req_queue = v4l2_m2m_request_queue,
+};
+
+static int avd_v4l2_init(struct avd_dev *avd)
+{
+	int ret;
+
+	ret = v4l2_device_register(avd->dev, &avd->v4l2_dev);
+	if (ret) {
+		dev_err(avd->dev, "Failed to register V4L2 device\n");
+		return ret;
+	}
+
+	avd->m2m_dev = v4l2_m2m_init(&avd_m2m_ops);
+	if (IS_ERR(avd->m2m_dev)) {
+		v4l2_err(&avd->v4l2_dev, "Failed to init mem2mem device\n");
+		ret = PTR_ERR(avd->m2m_dev);
+		goto err_unregister_v4l2;
+	}
+
+	avd->mdev.dev = avd->dev;
+	strscpy(avd->mdev.model, "avd", sizeof(avd->mdev.model));
+	strscpy(avd->mdev.bus_info, "platform:avd", sizeof(avd->mdev.bus_info));
+	media_device_init(&avd->mdev);
+	avd->mdev.ops = &avd_media_ops;
+	avd->v4l2_dev.mdev = &avd->mdev;
+
+	avd->vdev.lock = &avd->vdev_lock;
+	avd->vdev.v4l2_dev = &avd->v4l2_dev;
+	avd->vdev.fops = &avd_fops;
+	avd->vdev.release = video_device_release_empty;
+	avd->vdev.vfl_dir = VFL_DIR_M2M;
+	avd->vdev.device_caps = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_M2M_MPLANE;
+	avd->vdev.ioctl_ops = &avd_ioctl_ops;
+	video_set_drvdata(&avd->vdev, avd);
+	strscpy(avd->vdev.name, "avd", sizeof(avd->vdev.name));
+
+	ret = video_register_device(&avd->vdev, VFL_TYPE_VIDEO, -1);
+	if (ret) {
+		v4l2_err(&avd->v4l2_dev, "Failed to register video device\n");
+		goto err_cleanup_mc;
+	}
+
+	ret = v4l2_m2m_register_media_controller(
+		avd->m2m_dev, &avd->vdev, MEDIA_ENT_F_PROC_VIDEO_DECODER);
+	if (ret) {
+		v4l2_err(&avd->v4l2_dev,
+			 "Failed to initialize V4L2 M2M media controller\n");
+		goto err_unregister_vdev;
+	}
+
+	ret = media_device_register(&avd->mdev);
+	if (ret) {
+		v4l2_err(&avd->v4l2_dev, "Failed to register media device\n");
+		goto err_unregister_mc;
+	}
+
+	return 0;
+
+err_unregister_mc:
+	v4l2_m2m_unregister_media_controller(avd->m2m_dev);
+
+err_unregister_vdev:
+	video_unregister_device(&avd->vdev);
+
+err_cleanup_mc:
+	media_device_cleanup(&avd->mdev);
+	v4l2_m2m_release(avd->m2m_dev);
+
+err_unregister_v4l2:
+	v4l2_device_unregister(&avd->v4l2_dev);
+	return ret;
+}
+
+static void avd_v4l2_cleanup(struct avd_dev *avd)
+{
+	media_device_unregister(&avd->mdev);
+	v4l2_m2m_unregister_media_controller(avd->m2m_dev);
+	video_unregister_device(&avd->vdev);
+	media_device_cleanup(&avd->mdev);
+	v4l2_m2m_release(avd->m2m_dev);
+	v4l2_device_unregister(&avd->v4l2_dev);
+}
+
+static int avd_probe(struct platform_device *pdev)
+{
+	struct avd_dev *avd;
+	int ret, irq;
+
+	avd = devm_kzalloc(&pdev->dev, sizeof(*avd), GFP_KERNEL);
+	if (!avd)
+		return -ENOMEM;
+
+	platform_set_drvdata(pdev, avd);
+	avd->dev = &pdev->dev;
+	avd->pdev = pdev;
+
+	mutex_init(&avd->vdev_lock);
+	mutex_init(&avd->dev_mutex);
+
+	avd->rstc = devm_reset_control_get_exclusive(avd->dev, NULL);
+	INIT_DELAYED_WORK(&avd->watchdog_work, avd_watchdog_func);
+	INIT_WORK(&avd->err_work, avd_err_func);
+
+	avd->base = devm_platform_ioremap_resource_byname(pdev, "base");
+	if (IS_ERR(avd->base))
+		return PTR_ERR(avd->base);
+	avd->code = devm_platform_ioremap_resource_byname(pdev, "code");
+	if (IS_ERR(avd->code))
+		return PTR_ERR(avd->code);
+	avd->sram = devm_platform_ioremap_resource_byname(pdev, "sram");
+	if (IS_ERR(avd->sram))
+		return PTR_ERR(avd->sram);
+	avd->mbox = devm_platform_ioremap_resource_byname(pdev, "mbox");
+	if (IS_ERR(avd->mbox))
+		return PTR_ERR(avd->mbox);
+	avd->ctrl = devm_platform_ioremap_resource_byname(pdev, "ctrl");
+	if (IS_ERR(avd->ctrl))
+		return PTR_ERR(avd->ctrl);
+	avd->wrap = devm_platform_ioremap_resource_byname(pdev, "wrap");
+	if (IS_ERR(avd->wrap))
+		return PTR_ERR(avd->wrap);
+
+
+	avd->domain = iommu_get_domain_for_dev(avd->dev);
+	if (!avd->domain) {
+		dev_err(avd->dev, "Failed to request iommu");
+		return -EINVAL;
+	}
+
+	ret = request_firmware(&avd->fw, "apple/avd-v4.bin", avd->dev);
+
+	if (ret) {
+		dev_err(avd->dev, "failed to load firmware: %d", ret);
+		return ret;
+	}
+
+	/* This is a guess based on some random register write... */
+	ret = dma_set_mask_and_coherent(avd->dev, DMA_BIT_MASK(41));
+	if (ret) {
+		dev_err(avd->dev, "Failed to set DMA mask");
+		return ret;
+	}
+
+	/* TODO what irq, is devm_request_threaded_irq better and what flags */
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0)
+		return irq;
+	ret = devm_request_irq(avd->dev, irq, avd_irq_handler, 0,
+			dev_name(&pdev->dev), avd);
+	if (ret) {
+		dev_err(avd->dev, "Could not request IRQ 0");
+		return ret;
+	}
+
+	irq = platform_get_irq(pdev, 1);
+	if (irq < 0)
+		return irq;
+	ret = devm_request_irq(avd->dev, irq, avd_irq_handler, 0,
+			dev_name(&pdev->dev), avd);
+	if (ret) {
+		dev_err(avd->dev, "Could not request IRQ 1");
+		return ret;
+	}
+
+	pm_runtime_set_autosuspend_delay(avd->dev, 100);
+	pm_runtime_use_autosuspend(avd->dev);
+	pm_runtime_enable(avd->dev);
+
+	ret = avd_v4l2_init(avd);
+	if (ret)
+		goto err_disable_runtime_pm;
+
+	return 0;
+
+err_disable_runtime_pm:
+	pm_runtime_dont_use_autosuspend(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
+	return ret;
+}
+
+static void avd_remove(struct platform_device *pdev)
+{
+	struct avd_dev *avd = platform_get_drvdata(pdev);
+
+	release_firmware(avd->fw);
+	cancel_delayed_work_sync(&avd->watchdog_work);
+	cancel_work_sync(&avd->err_work);
+
+	avd_v4l2_cleanup(avd);
+
+	pm_runtime_disable(avd->dev);
+	pm_runtime_dont_use_autosuspend(avd->dev);
+}
+
+static int avd_runtime_resume(struct device *dev)
+{
+	int ret;
+	struct avd_dev *avd = platform_get_drvdata(to_platform_device(dev));
+	dev_info(avd->dev, "pm: booting");
+
+	ret = avd_boot(avd);
+	if (ret)
+		dev_err(dev, "failed to boot");
+	return ret;
+}
+
+static int avd_runtime_suspend(struct device *dev)
+{
+	struct avd_dev *avd = platform_get_drvdata(to_platform_device(dev));
+	dev_info(avd->dev, "pm: suspending");
+	avd_shutdown(avd);
+	return 0;
+}
+
+/* TODO */
+const struct avd_coded_fmt_ops avd_hevc_fmt_ops;
+const struct avd_coded_fmt_ops avd_vp9_fmt_ops;
+
+static const struct dev_pm_ops avd_pm_ops = { SET_SYSTEM_SLEEP_PM_OPS(
+	pm_runtime_force_suspend,
+	pm_runtime_force_resume) SET_RUNTIME_PM_OPS(avd_runtime_suspend,
+						    avd_runtime_resume, NULL) };
+
+static const struct of_device_id avd_of_match[] = {
+	{ .compatible = "apple,t8103-avd" },
+	{ .compatible = "apple,t6020-avd" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, avd_of_match);
+
+static struct platform_driver avd_driver = {
+	.probe = avd_probe,
+	.remove = avd_remove,
+	.driver = {
+		.name = "avd",
+		.of_match_table = avd_of_match,
+		.pm = &avd_pm_ops,
+	},
+};
+module_platform_driver(avd_driver);
+
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("Apple avd v4l2 sl m2m");
