@@ -1,4 +1,4 @@
-#include "linux/videodev2.h"
+#include <linux/videodev2.h>
 #include <linux/clk.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -14,6 +14,7 @@
 #include <linux/iommu.h>
 #include <linux/genalloc.h>
 #include <linux/reset.h>
+#include <linux/iopoll.h>
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-dev.h>
@@ -26,11 +27,6 @@
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-v4l2.h>
-
-/* debug */
-#include <linux/fs.h>
-#include <linux/uaccess.h>
-#include <linux/delay.h>
 
 #include "avd.h"
 #include "avd-inst.h"
@@ -52,17 +48,19 @@ void avd_buf_free(struct avd_dev *avd, struct avd_buf *buf)
 
 static int avd_reset(struct avd_dev *avd)
 {
-	int ret;
-	if (pm_runtime_suspended(avd->dev))
-		return -EINVAL;
+	int ret = 0;
+	avd->vp_slots = 0;
+	avd->inst_fifo_slots = 0;
+
+	ret = pm_runtime_resume_and_get(avd->dev);
+	if (ret < 0)
+		return ret;
 
 	iommu_reset_dev(avd->domain);
 
 	ret = reset_control_reset(avd->rstc);
-	if (ret) {
+	if (ret)
 		dev_err(avd->dev, "reset: failed: %d", ret);
-		return ret;
-	}
 
 	iommu_restore_dev(avd->domain);
 
@@ -70,30 +68,38 @@ static int avd_reset(struct avd_dev *avd)
 	if (ret)
 		dev_err(avd->dev, "reset: failed to boot");
 
+	pm_runtime_put_autosuspend(avd->dev);
+
 	return ret;
 }
 
-static void avd_err_func(struct work_struct *work)
+static void avd_watchdog_func(struct work_struct *work)
 {
-	struct avd_dev *avd = container_of(work, struct avd_dev, err_work);
+	struct avd_dev *avd;
+	struct avd_ctx *ctx;
 	int ret;
-	mutex_lock(&avd->dev_mutex);
+	ctx = container_of(to_delayed_work(work), struct avd_ctx,
+			   watchdog_work);
+	if (!ctx)
+		return;
 
-	/* u32 status = avd_r32(ctrl, 0x1414); */
-	/* /1* 00010110 no tbtr dma error (other status) *1/ */
-	/* if (!((status & 0x40) || avd_vp_cache_full(avd))) { */
-	/* 	/1* no error! *1/ */
-	/* 	goto done; */
-	/* } */
+	avd = ctx->dev;
 
+	dev_err(avd->dev, "Frame processing timed out! Vp: %d (%02d)",
+		ctx->vp_slot, ctx->fifo_idx);
+
+	clear_bit(ctx->vp_slot, &avd->vp_slots);
+	ctx->vp_slot = VP_SLOT_NONE;
+	clear_bit(ctx->fifo_idx, &avd->inst_fifo_slots);
+	ctx->fifo_idx = INST_FIFO_SLOT_NONE;
+
+	avd_w32(wrap, 0x18, 0);
 	ret = avd_reset(avd);
 	if (ret)
 		dev_err(avd->dev, "failed to reset: %d", ret);
+	avd_w32(wrap, 0x18, 1);
 
-	/* TODO */
-	avd->vp_slots = 0;
-
-	mutex_unlock(&avd->dev_mutex);
+	avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
 }
 
 static irqreturn_t avd_irq_handler(int irq, void *data)
@@ -109,22 +115,22 @@ static irqreturn_t avd_irq_handler(int irq, void *data)
 	status = avd_r32(mbox, 0x64);
 
 	avd_w32(mbox, 0x4c, 0x8); /* clear mbox */
+	if ((status >> 16) != 0) { /* dbg */
+		dev_warn(avd->dev, "no handler for IRQ: %3d", status >> 16);
+		return IRQ_HANDLED;
+	}
 
 	if (status & 0x1000) {
 		/* pp is done ! we are done*/
-		/* dev_info(avd->dev, "PP done!"); */
 		state = VB2_BUF_STATE_DONE;
+
+		clear_bit(ctx->fifo_idx, &avd->inst_fifo_slots);
+		ctx->fifo_idx = INST_FIFO_SLOT_NONE;
 	} else if (status & 0x100) {
 		clear_bit((status & 0xf) - 4, &avd->vp_slots);
 
-		if (ctx->vp_slot != (status & 0xf))
-			dev_err(avd->dev, "VP mismatch ctx vp: %d actual: %d",
-				ctx->vp_slot, status & 0xf);
-
 		ctx->vp_slot = VP_SLOT_NONE;
 		/* a vp is done, kick the pp and hope for the best */
-		/* dev_info(avd->dev, "VP%d done", (status & 0xf)); */
-
 		/* clang-format off */
 		avd_w32(ctrl, 0x30,
 				0x2b000000
@@ -134,27 +140,13 @@ static irqreturn_t avd_irq_handler(int irq, void *data)
 		/* clang-format done */
 		goto done;
 	} else {
-		/* dev_err(avd->dev, "H%d error %d", status, ctx->fifo_idx); */
-		if (ctx->vp_slot != VP_SLOT_NONE) {
-			if (ctx->vp_slot != (status & 0xf))
-				dev_err(avd->dev,
-					"VP mismatch ctx vp: %d actual: %d",
-					ctx->vp_slot, status & 0xf);
-
-			ctx->vp_slot = VP_SLOT_NONE;
-		}
-
-		/* use the status as that is the absolute truth */
-		clear_bit(status - 4, &avd->vp_slots);
-
-		/* avd_status(avd); */
-		schedule_work(&avd->err_work);
-
-		state = VB2_BUF_STATE_ERROR;
+		dev_err(avd->dev, "H%d error (%02d)", status, ctx->fifo_idx);
+		/* let watchdog handle */
+		goto done;
 	}
 
 	/* if the watchdog_work has run the work has already been submitted */
-	if (cancel_delayed_work(&avd->watchdog_work))
+	if (cancel_delayed_work(&ctx->watchdog_work))
 		avd_job_finish(ctx, state);
 
 done:
@@ -177,48 +169,37 @@ static void avd_device_run(void *priv)
 		return;
 	}
 
-	/*
-	 * Hack: reset state on each new frame.
-	 */
-	if (ctx->fh.m2m_ctx->new_frame)
-		schedule_work(&avd->err_work);
-
-	flush_work(&avd->err_work);
-
-	mutex_lock(&avd->dev_mutex);
-
-	/* this is very clunky */
+	/* TODO: better scheduling */
 	if (ctx->fh.m2m_ctx->new_frame) {
 		u8 free = find_first_zero_bit(&avd->vp_slots, VP_SLOT_NUM);
 
 		if (free == VP_SLOT_NUM) {
 			ctx->vp_slot = VP_SLOT_NONE;
-			dev_err(avd->dev, "no free vp slots");
 		} else {
-			/* dev_info(avd->dev, "assigned vp: %d", free+4); */
 			set_bit(free, &avd->vp_slots);
 
 			ctx->vp_slot = free + 4;
-			/* I dont fully understand this. As far as i can tell this has no
-			 * usefull effect unless vp_slot is also set */
-			ctx->fifo_idx = free;
+			free = find_first_zero_bit(&avd->inst_fifo_slots, INST_FIFO_SLOT_NUM);
+			ctx->fifo_idx = free; /* should always be valid? */
+			set_bit(free, &avd->inst_fifo_slots);
+			if (WARN_ON(free == INST_FIFO_SLOT_NUM))
+				dev_err(avd->dev, "no fifo slot?");
 		}
 	}
 
 	if (ctx->vp_slot == VP_SLOT_NONE) {
 		avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
-		goto mutex_unlock;
+		dev_err(avd->dev, "no assigned vp slot!");
+		return;
 	}
 
 	ret = desc->ops->run(ctx);
 	if (ret) {
+		dev_err(avd->dev, "VP%d: desc->ops->run: %d",
+				ctx->vp_slot, ret);
 		avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
-		clear_bit(ctx->vp_slot - 4, &avd->vp_slots);
-		ctx->vp_slot = VP_SLOT_NONE;
 	}
 
-mutex_unlock:
-	mutex_unlock(&avd->dev_mutex);
 	return;
 }
 
@@ -262,33 +243,6 @@ static int avd_queue_init(void *priv, struct vb2_queue *src_vq,
 	return vb2_queue_init(dst_vq);
 }
 
-static void avd_watchdog_func(struct work_struct *work)
-{
-	struct avd_dev *avd;
-	struct avd_ctx *ctx;
-	/* int ret; */
-	avd = container_of(to_delayed_work(work), struct avd_dev,
-			   watchdog_work);
-
-	ctx = v4l2_m2m_get_curr_priv(avd->m2m_dev);
-	dev_err(avd->dev, "Frame processing timed out! Vp: %d", ctx->vp_slot);
-	if (ctx->vp_slot != VP_SLOT_NONE) {
-		/* dev_info(avd->dev, "clearing vp %d", ctx->vp_slot); */
-		clear_bit(ctx->vp_slot - 4, &avd->vp_slots);
-		ctx->vp_slot = VP_SLOT_NONE;
-	}
-
-	if (avd_vp_cache_full(avd))
-		schedule_work(&avd->err_work);
-
-	/* to reset or not */
-	/* ret = avd_reset(avd); */
-	/* if (ret) */
-	/* 	dev_err(avd->dev, "Failed to reset! %d", ret); */
-
-	avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
-}
-
 static int avd_open(struct file *filp)
 {
 	struct avd_dev *avd = video_drvdata(filp);
@@ -300,6 +254,8 @@ static int avd_open(struct file *filp)
 		return -ENOMEM;
 
 	ctx->dev = avd;
+
+	INIT_DELAYED_WORK(&ctx->watchdog_work, avd_watchdog_func);
 
 	avd_reset_coded_fmt(ctx);
 	avd_reset_decoded_fmt(ctx);
@@ -457,8 +413,6 @@ static int avd_probe(struct platform_device *pdev)
 	mutex_init(&avd->dev_mutex);
 
 	avd->rstc = devm_reset_control_get_exclusive(avd->dev, NULL);
-	INIT_DELAYED_WORK(&avd->watchdog_work, avd_watchdog_func);
-	INIT_WORK(&avd->err_work, avd_err_func);
 
 	avd->base = devm_platform_ioremap_resource_byname(pdev, "base");
 	if (IS_ERR(avd->base))
@@ -500,28 +454,18 @@ static int avd_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	/* TODO what irq, is devm_request_threaded_irq better and what flags */
-	irq = platform_get_irq(pdev, 0);
-	if (irq < 0)
-		return irq;
-	ret = devm_request_irq(avd->dev, irq, avd_irq_handler, 0,
-			dev_name(&pdev->dev), avd);
-	if (ret) {
-		dev_err(avd->dev, "Could not request IRQ 0");
-		return ret;
-	}
-
 	irq = platform_get_irq(pdev, 1);
 	if (irq < 0)
 		return irq;
-	ret = devm_request_irq(avd->dev, irq, avd_irq_handler, 0,
+	ret = devm_request_threaded_irq(&pdev->dev, irq, NULL,
+			avd_irq_handler, IRQF_ONESHOT,
 			dev_name(&pdev->dev), avd);
 	if (ret) {
 		dev_err(avd->dev, "Could not request IRQ 1");
 		return ret;
 	}
 
-	pm_runtime_set_autosuspend_delay(avd->dev, 100);
+	pm_runtime_set_autosuspend_delay(avd->dev, 50);
 	pm_runtime_use_autosuspend(avd->dev);
 	pm_runtime_enable(avd->dev);
 
@@ -542,8 +486,6 @@ static void avd_remove(struct platform_device *pdev)
 	struct avd_dev *avd = platform_get_drvdata(pdev);
 
 	release_firmware(avd->fw);
-	cancel_delayed_work_sync(&avd->watchdog_work);
-	cancel_work_sync(&avd->err_work);
 
 	avd_v4l2_cleanup(avd);
 
@@ -567,12 +509,12 @@ static int avd_runtime_suspend(struct device *dev)
 {
 	struct avd_dev *avd = platform_get_drvdata(to_platform_device(dev));
 	dev_info(avd->dev, "pm: suspending");
+
 	avd_shutdown(avd);
 	return 0;
 }
 
 /* TODO */
-const struct avd_coded_fmt_ops avd_hevc_fmt_ops;
 const struct avd_coded_fmt_ops avd_vp9_fmt_ops;
 
 static const struct dev_pm_ops avd_pm_ops = { SET_SYSTEM_SLEEP_PM_OPS(

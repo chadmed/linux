@@ -10,17 +10,17 @@
  *	Tomasz Figa <tfiga@chromium.org>
  */
 
-#include "linux/v4l2-controls.h"
+#include <linux/workqueue.h>
+#include <linux/v4l2-controls.h>
 #include <linux/types.h>
+#include <linux/iopoll.h>
+
 #include <media/v4l2-h264.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-dma-contig.h>
 
 #include "avd.h"
 #include "avd-inst.h"
-
-/* HACK */
-#include <linux/delay.h>
 
 struct avd_h264_run {
 	struct avd_run base;
@@ -347,7 +347,7 @@ static void stream_weights(struct avd_ctx *ctx, struct avd_h264_run *run)
 	}
 }
 
-static void stream_slice(struct avd_ctx *ctx, struct avd_h264_run *run)
+static u32 stream_slice(struct avd_ctx *ctx, struct avd_h264_run *run)
 {
 	const struct v4l2_ctrl_h264_decode_params *decode = run->decode;
 	const struct v4l2_ctrl_h264_pps *pps = run->pps;
@@ -473,12 +473,12 @@ static void stream_slice(struct avd_ctx *ctx, struct avd_h264_run *run)
 	push(0x2b000000
 			| !(src->flags & V4L2_BUF_FLAG_M2M_HOLD_CAPTURE_BUF) << 10,
 			"cm3_cmd_inst_fifo_end");
+
+	return payload_len - off;
 }
 /* clang-format on */
 
 #undef flag
-#undef pusha
-#undef push
 
 static int avd_h264_alloc_bufs(struct avd_ctx *ctx)
 {
@@ -537,17 +537,27 @@ static void avd_h264_free_bufs(struct avd_ctx *ctx)
 	kfree(h264_ctx);
 }
 
+static int avd_h264_validate_pps(struct avd_ctx *ctx,
+				 const struct v4l2_ctrl_h264_pps *pps)
+{
+	if (pps->num_slice_groups_minus1 != 0) {
+		dev_err(ctx->dev->dev, "pps->num_slice_groups_minus1 != 0");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int avd_h264_validate_sps(struct avd_ctx *ctx,
 				 const struct v4l2_ctrl_h264_sps *sps)
 {
-	/* i know at least pps->num_slice_groups_minus1 != 0 is not supported
-	 * either */
-
 	if (sps->chroma_format_idc > 2)
 		/* Only 4:0:0, 4:2:0 and 4:2:2 are supported */
 		return -EINVAL;
 	if (sps->bit_depth_luma_minus8 != sps->bit_depth_chroma_minus8)
 		/* Luma and chroma bit depth mismatch */
+		return -EINVAL;
+	if (!(sps->flags & V4L2_H264_SPS_FLAG_FRAME_MBS_ONLY))
 		return -EINVAL;
 
 	return 0;
@@ -588,7 +598,9 @@ err_free_ctx:
 static void avd_h264_stop(struct avd_ctx *ctx)
 {
 	avd_h264_free_bufs(ctx);
+	/* TODO */
 	clear_bit(ctx->vp_slot - 4, &ctx->dev->vp_slots);
+	clear_bit(ctx->fifo_idx, &ctx->dev->inst_fifo_slots);
 }
 
 static void avd_h264_run_preamble(struct avd_ctx *ctx, struct avd_h264_run *run)
@@ -631,6 +643,8 @@ static int avd_h264_run(struct avd_ctx *ctx)
 	struct avd_h264_ctx *h264_ctx = ctx->priv;
 	struct v4l2_h264_reflist_builder reflist_builder;
 	struct avd_h264_run run;
+	u32 slice_size, slice_parsed;
+	int ret;
 
 	avd_h264_run_preamble(ctx, &run);
 
@@ -645,29 +659,41 @@ static int avd_h264_run(struct avd_ctx *ctx)
 	v4l2_h264_build_b_ref_lists(&reflist_builder, h264_ctx->reflists.b0,
 				    h264_ctx->reflists.b1);
 
-	if (ctx->fh.m2m_ctx->new_frame) {
-		avd_configure_stream(ctx->dev, h264_ctx->bufs.inst.addr,
-				     ctx->fifo_idx);
-
-		stream_hdr(ctx, &run);
-	}
-	stream_slice(ctx, &run);
-
 	avd_run_postamble(ctx, &run.base);
 
+	if (ctx->fh.m2m_ctx->new_frame) {
+		avd_configure_stream(ctx->dev, h264_ctx->bufs.inst.addr,
+				     ctx->fifo_idx, ctx->vp_slot);
+		stream_hdr(ctx, &run);
+	}
+
+	schedule_delayed_work(&ctx->watchdog_work, msecs_to_jiffies(2000));
+
+	slice_size = stream_slice(ctx, &run);
+
 	if (run.base.bufs.src->flags & V4L2_BUF_FLAG_M2M_HOLD_CAPTURE_BUF) {
-		/* TODO: delayed work or something that checks how much
-		 * of the slice has been read.
-		 *
-		 * CVBS3_Sony_C is a good test for this or no?
-		 *
-		 * Until then a simple hack:
-		 * */
-		usleep_range(150, 200);
-		avd_job_finish(ctx, VB2_BUF_STATE_DONE);
-	} else {
-		schedule_delayed_work(&avd->watchdog_work,
-				      msecs_to_jiffies(1000));
+		u32 reg = (0x1018 | ctx->vp_slot << 8);
+		ret = readl_poll_timeout(
+			avd->ctrl + reg, slice_parsed,
+			slice_parsed >= round_down(slice_size, 8), 10, 40000);
+
+		if (ctx->vp_slot ==
+		    VP_SLOT_NONE) /* an error already happened */
+			return 0;
+
+		if (cancel_delayed_work(&ctx->watchdog_work)) {
+			if (ret) {
+				dev_err(avd->dev,
+					"VP%d: timed out (%02d)!"
+					" size: %08x parsed: %08x",
+					ctx->vp_slot, ctx->fifo_idx, slice_size,
+					slice_parsed);
+				avd_status(avd, ctx->vp_slot);
+				return ret;
+			}
+
+			avd_job_finish(ctx, VB2_BUF_STATE_DONE);
+		}
 	}
 
 	return 0;
@@ -710,6 +736,8 @@ static int avd_h264_try_ctrl(struct avd_ctx *ctx, struct v4l2_ctrl *ctrl)
 {
 	if (ctrl->id == V4L2_CID_STATELESS_H264_SPS)
 		return avd_h264_validate_sps(ctx, ctrl->p_new.p_h264_sps);
+	if (ctrl->id == V4L2_CID_STATELESS_H264_PPS)
+		return avd_h264_validate_pps(ctx, ctrl->p_new.p_h264_pps);
 
 	return 0;
 }

@@ -111,31 +111,37 @@ struct avd_dev {
 	struct mutex vdev_lock;
 	struct mutex dev_mutex;
 
-	struct delayed_work watchdog_work;
-	struct work_struct err_work;
-
 	struct reset_control *rstc;
 
-	/* not sure if i also need this */
-	u8 fifo_idx;
 	/*
-	 * Multi slice frames seem to break if a new header is sent in between.
-	 * Using the fifo thing does not seem to solve it.
+	 * not sure if "slot" is the best word for this.
+	 * Is there a performance gain to this?
 	 *
-	 * One possible solution is to reserve a vp slot for each new frame and
-	 * free the slot when done.
-	 * This assumes all mackbooks have at least 4 vp slots AND that they all
-	 * work the same way.
+	 * on m2 max pro ?
+	 * 4 h265 slots
+	 * 4 h264 slots
+	 * 1 vp9  slot
+	 *
+	 * Im afraid m1 does not have this
 	 */
 	unsigned long vp_slots;
+
+	/*
+	 * not sure if "slot" is the best word for this.
+	 * This is for telling vp where to output and pp where the input is
+	 *
+	 * 16  m2 pro
+	 * 7   m1
+	 */
+	unsigned long inst_fifo_slots;
+
+	atomic_t job_seq; /* for dbg only */
 };
 
-// TODO cleanup
 struct avd_ctx {
 	struct v4l2_fh fh;
 	struct avd_dev *dev;
 
-	/* oh yeah hantros stupid pix_format_mplane thing! */
 	struct v4l2_format coded_fmt;
 	struct v4l2_format decoded_fmt;
 
@@ -143,14 +149,13 @@ struct avd_ctx {
 	struct v4l2_ctrl_handler ctrl_hdl;
 	enum avd_image_fmt image_fmt;
 
+	struct delayed_work watchdog_work;
+
 	void *priv;
 
 	/* reference VRA (video resolution adaptation) scaler buffer. */
 	u32 rvra_offsets[4];
 
-	/* 16 slots on ravioli, i have no clue what they do as soon as
-	 * fifo_idx > vp_num
-	 * */
 	u8 fifo_idx;
 	u8 vp_slot;
 };
@@ -314,9 +319,8 @@ static inline struct avd_ctx *file_to_ctx(struct file *filp)
 int avd_boot(struct avd_dev *avd);
 void avd_shutdown(struct avd_dev *avd);
 
-void avd_status(struct avd_dev *avd);
-void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx);
-
-bool avd_vp_cache_full(struct avd_dev *avd);
+void avd_status(struct avd_dev *avd, u32 vp);
+void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
+			  u32 vp_slot);
 
 #endif /* AVD_H_ */

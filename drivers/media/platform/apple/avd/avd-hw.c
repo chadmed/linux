@@ -1,25 +1,16 @@
 #include "linux/dev_printk.h"
 #include <linux/delay.h>
+#include <linux/iopoll.h>
 
 #include "avd.h"
-
-#define MCPU_BOOT_TRY 1000
 
 #define INST_OFF(idx) (0x1c8 + (idx * 4)) /* bytes of instructions written */
 #define INST_NUM 0x141c /* number of instructions since last submit ? */
 #define ADDR_LOW(idx) (0x150 + (idx * 4))
 #define ADDR_HIGH(idx) (0x30c + (idx * 4))
 
-/*
- * MAX for a fifo ? not sure what to call it
- * NUM number of instructions not parsed. ?
- *     if num == max new instructions are lost ?
- * */
-#define MAXC1 0x44
-#define NUMC1 0x6c
-
-#define MAX30 0x58
-#define NUM30 0x80
+#define INST_FIFO_CACHE_USED(slot) (0x5c + (slot * 4))
+#define INST_FIFO_CACHE_CAPACITY(slot) (0x34 + (slot * 4))
 
 /* sorry for all the "magic" numbers in this file */
 
@@ -27,6 +18,7 @@ static void apply_tunatables(struct avd_dev *avd)
 {
 #define w32(off, val) (avd_w32(ctrl, off, val))
 	w32(0x0008, 0x80000000);
+
 	w32(0x1000, 0x80000000);
 	w32(0x1100, 0x80000000);
 	w32(0x1200, 0x80000000);
@@ -36,6 +28,7 @@ static void apply_tunatables(struct avd_dev *avd)
 	w32(0x1600, 0x80000000);
 	w32(0x1700, 0x80000000);
 	w32(0x1800, 0x80000000);
+
 	w32(0x4000, 0x80000000);
 	w32(0x4100, 0x80000000);
 	w32(0x4200, 0x80000000);
@@ -43,6 +36,7 @@ static void apply_tunatables(struct avd_dev *avd)
 	w32(0x4400, 0x80000000);
 	w32(0x4500, 0x80000000);
 	w32(0x4600, 0x80000000);
+
 	w32(0xc000, 0x1);
 	w32(0xc080, 0x800107ff);
 	w32(0xc084, 0x28);
@@ -178,7 +172,10 @@ static void apply_tunatables(struct avd_dev *avd)
 
 static int avd_pmgr(struct avd_dev *avd)
 {
-	/* return 0; */
+	/*
+	 * This should be deleted at some point.
+	 * If the check fails, it means the hw did not shut down
+	 */
 #define w32(off, v) avd_w32(base, off, v)
 #define chk(off, v)                                                    \
 	do {                                                           \
@@ -191,11 +188,6 @@ static int avd_pmgr(struct avd_dev *avd)
 			return 0;                                      \
 		}                                                      \
 	} while (false)
-	/*
-	 * Im not sure what to make of this. Nothing changes if i delete it.
-	 *
-	 * The check is nice tho, lets me know if something went wrong somewhere
-	 * */
 
 	chk(0x000, 0x10);
 	w32(0x000, 0x11);
@@ -249,6 +241,7 @@ static int avd_pmgr(struct avd_dev *avd)
 
 int avd_boot(struct avd_dev *avd)
 {
+	u32 val;
 	int ret;
 	ret = avd_pmgr(avd);
 	if (ret)
@@ -302,17 +295,12 @@ int avd_boot(struct avd_dev *avd)
 	avd_w32(mbox, 0x10, 0x2);
 	avd_w32(mbox, 0x48, 0x8);
 	avd_w32(mbox, 0x08, 0x1);
-	// i only think this is needed if we do more work on the cm3
-	for (int i = 0; i < MCPU_BOOT_TRY; i++) {
-		if (avd_r32(mbox, 0x90) == 0x1)
-			break;
-		if (i + 1 == MCPU_BOOT_TRY) {
-			return -EINVAL;
-		}
-		usleep_range(50, 100);
-	}
-	/* while r32(0x10a0090) != 0x1: */
-	/* 	self.log("waiting for cpu to boot...") */
+
+	/* wait for cm3 to boot */
+	ret = readl_poll_timeout(avd->mbox + 0x90, val, val == 1, 10, 10000);
+	if (ret)
+		return ret;
+
 	avd_w32(wrap, 0x14, 0x0);
 	return 0;
 }
@@ -330,22 +318,9 @@ static void avd_prepare(struct avd_dev *avd)
 #define r32(off) (avd_r32(ctrl, off))
 #define m32(off, val) w32(off, (val) | (r32(off)))
 
-	/* Something here is irq
-	 * It seems from status that it works */
-	/* TODO: try to remove as many as possible
-	 * Most of this stuff can be removed. __i think__
-	 *
-	 * Dont try until you remove the reset tho.
-	 * */
 	w32(0x008, 0xc0000000);
-	w32(0x120, 0);
+	w32(0x120, 5);
 	w32(0x300, 0);
-
-	for (int i = 0; i < 15; i++)
-		w32(0x2b0 + (i * 4), 1);
-
-	for (int i = 0; i < 9; i++)
-		w32(0x1000 + (i * 0x100), 0xc0000000);
 
 	w32(0x8, 0xc0000000);
 	for (int i = 0; i < 7; i++)
@@ -435,7 +410,8 @@ static void avd_prepare(struct avd_dev *avd)
 	w32(0xe9a8, 0x40414243); /* tree in one? */
 }
 
-void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx)
+void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
+			  u32 vp_slot)
 {
 	/* sanity checks */
 	if (((addr >> 32) & 0x3ff) != (addr >> 32) ||
@@ -448,77 +424,50 @@ void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx)
 			fifo_idx);
 		return;
 	}
+	/* dev_info(avd->dev, "configure: %012llx %01x %01x", */
+	/* 		addr, fifo_idx, vp_slot); */
 
 	avd_prepare(avd);
 
-	w32(ADDR_LOW(fifo_idx), addr & 0xffffffff);
 	w32(ADDR_HIGH(fifo_idx), addr >> 32);
+	w32(ADDR_LOW(fifo_idx), addr & 0xffffffff);
 	/* unkown AVD_VP_INSN_FIFO_MASK */
 	w32(0x18c + (fifo_idx * 4), 0);
 	/* unkown AVD_VP_INSN_FIFO_CACH */
 	w32(0x204 + (fifo_idx * 4), 0);
 	w32(INST_OFF(fifo_idx), 0); /* clear instruction offset */
+	w32(0x2b0 + (fifo_idx * 4), 1);
 
-	/* w32(0x84, 0); /1* starts here?  *1/ */
-	w32(0x84, 0); /* guess */
-	w32(0x88, 0);
-	w32(0x8c, 0);
-	w32(0x90, 0);
+	w32(0x84 + (vp_slot * 4), 0);
+	m32(0x0fc + (vp_slot * 4), 7); /* irq mask */
 
-	w32(0x94, 0); /* vp4 */
-	w32(0x98, 0);
-	w32(0x9c, 0);
-	w32(0xa0, 0);
+	w32(0x1000 + (vp_slot * 0x100), 0xc0000000);
 
-	w32(0xa4, 0);
-
-	/* cm3 irq masks? bit 4 is empty.
-	 * i think all theese are vp
-	 * */
-	m32(0x0fc, 7); /* if forgot to check :( but should be 0 */
-	m32(0x100, 7); /*  86 */
-	m32(0x104, 7); /*  91 */
-	m32(0x108, 7); /*  96 */
-
-	m32(0x10c, 7); /* 101 */
-	m32(0x110, 7); /* 106 */
-	m32(0x114, 7); /* 111 */
-	m32(0x118, 7); /* 116 */
-
-	m32(0x11c, 7); /* 121 */
-
-	/* i think this is pp's iq mask */
-	m32(0x120, 5); /*  65 */
+	m32(0x120, 5);
 }
 
-/* debug functions */
-void avd_status(struct avd_dev *avd)
+void avd_status(struct avd_dev *avd, u32 vp)
 {
-	u32 start = 0x140c;
+	if (vp > 9)
+		return;
 	/*
-	 * 0x140c status bitmask 8 is no errors?
-	 * 0x1410 looks like sl->first_mb_in_slice
-	 * 0x1414 another status bitmask? 0x3f on succes? 0x40 on error?
-	 * 0x1418 slice bytes read? is almost never the same as hdr_size written
-	 * */
-
-	dev_info(avd->dev, "status: %08x %08x %08x %08x", r32(start),
+	 * + 0xc status bitmask 8 is no errors? (cleared by cm3)
+	 * + 0x0 looks like sl->first_mb_in_slice
+	 * + 0x4 another status bitmask? 0x3f on succes? 0x40 on error?
+	 * + 0x8 slice bytes read? is almost never the same as hdr_size written
+	 */
+	u32 start = 0x1000 | (vp << 8);
+	dev_info(avd->dev, "VP%d: %08x %08x %08x %08x", vp, r32(start),
 		 r32(start + 4), r32(start + 8), r32(start + 12));
-	if (r32(NUMC1) == r32(MAXC1))
-		/* instruction cache? no clue */
-		dev_err(avd->dev, "instruction cache full! %02x/%02x",
-			r32(NUMC1), r32(MAXC1));
-	dev_info(avd->dev, "inst: num: %08x 30: %02x/%02x", r32(INST_NUM),
-		 r32(NUM30), r32(MAX30));
+	dev_info(avd->dev, "VP%d: %08x %08x %08x", vp, r32(start + 16),
+		 r32(start + 20), r32(start + 24));
+	if (r32(INST_FIFO_CACHE_USED(vp)) == r32(INST_FIFO_CACHE_CAPACITY(vp)))
+		dev_warn_ratelimited(avd->dev,
+				     "VP%d: instruction cache full! %02x/%02x",
+				     vp, r32(INST_FIFO_CACHE_USED(vp)),
+				     r32(INST_FIFO_CACHE_CAPACITY(vp)));
 }
 
-/* im not sure if its vp cache, its fatal?
- * cm3 sets vp empty interupt when this happens, no clue why, it never recovers
- * */
-bool avd_vp_cache_full(struct avd_dev *avd)
-{
-	return r32(NUMC1) == r32(MAXC1);
-}
 #undef w32
 #undef r32
 #undef m32

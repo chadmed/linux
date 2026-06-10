@@ -188,15 +188,15 @@ static const struct avd_ctrl_desc avd_hevc_ctrl_descs[] = {
 	},
 	{
 		.cfg.id = V4L2_CID_STATELESS_HEVC_DECODE_MODE,
-		.cfg.min = V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
-		.cfg.max = V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
-		.cfg.def = V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
+		.cfg.min = V4L2_STATELESS_HEVC_DECODE_MODE_SLICE_BASED,
+		.cfg.max = V4L2_STATELESS_HEVC_DECODE_MODE_SLICE_BASED,
+		.cfg.def = V4L2_STATELESS_HEVC_DECODE_MODE_SLICE_BASED,
 	},
 	{
 		.cfg.id = V4L2_CID_STATELESS_HEVC_START_CODE,
-		.cfg.min = V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
-		.cfg.def = V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
-		.cfg.max = V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
+		.cfg.min = V4L2_STATELESS_HEVC_START_CODE_NONE,
+		.cfg.def = V4L2_STATELESS_HEVC_START_CODE_NONE,
+		.cfg.max = V4L2_STATELESS_HEVC_START_CODE_NONE,
 	},
 	{
 		.cfg.id = V4L2_CID_MPEG_VIDEO_HEVC_PROFILE,
@@ -237,6 +237,7 @@ static const struct avd_ctrl_desc avd_h264_ctrl_descs[] = {
 	},
 	{
 		.cfg.id = V4L2_CID_STATELESS_H264_PPS,
+		.cfg.ops = &avd_ctrl_ops,
 	},
 	{
 		.cfg.id = V4L2_CID_STATELESS_H264_SCALING_MATRIX,
@@ -252,7 +253,6 @@ static const struct avd_ctrl_desc avd_h264_ctrl_descs[] = {
 		.cfg.min = V4L2_STATELESS_H264_DECODE_MODE_SLICE_BASED,
 		.cfg.max = V4L2_STATELESS_H264_DECODE_MODE_SLICE_BASED,
 		.cfg.def = V4L2_STATELESS_H264_DECODE_MODE_SLICE_BASED,
-		/* .cfg.min = V4L2_STATELESS_H264_DECODE_MODE_FRAME_BASED, */
 	},
 	{
 		.cfg.id = V4L2_CID_STATELESS_H264_START_CODE,
@@ -344,6 +344,7 @@ static const struct avd_coded_fmt_desc avd_coded_fmts[] = {
 		.ctrls = &avd_hevc_ctrls,
 		.ops = &avd_hevc_fmt_ops,
 		.num_decoded_fmts = ARRAY_SIZE(avd_hevc_decoded_fmts),
+		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
 		.decoded_fmts = avd_hevc_decoded_fmts,
 		.capability = AVD_CAPABILITY_HEVC,
 	},
@@ -384,8 +385,8 @@ static const struct avd_coded_fmt_desc avd_coded_fmts[] = {
 
 static bool avd_is_capable(struct avd_ctx *ctx, unsigned int capability)
 {
-	return capability == AVD_CAPABILITY_H264;
-	/* return true; */
+	return capability == AVD_CAPABILITY_H264 ||
+	       capability == AVD_CAPABILITY_HEVC;
 	/* return (ctx->dev->variant->capabilities & capability) == capability; */
 }
 

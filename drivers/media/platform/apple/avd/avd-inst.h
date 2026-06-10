@@ -1,17 +1,21 @@
 #ifndef AVD_INST_H_
 #define AVD_INST_H_
 /* instruction stream things  */
+#include <linux/types.h>
+
 #include "avd.h"
-#include "linux/types.h"
 
 /* i have no clue what this is */
 #define INST_DMA1 0 /* (0x14 << 16 | 0x14) */
-#define INST_DMA2 0 /* (0x4000000  | INST_DMA1) */
+#define INST_DMA2 0 /* (0x4000000 | INST_DMA1) */
 #define INST_DMA3 0 /* (0x07 << 16 | 0x07) */
 
 #define VP_SLOT_NUM 4
 #define VP_SLOT_NONE 255
 #define VP_SLOT_START 0xc
+
+#define INST_FIFO_SLOT_NUM 16
+#define INST_FIFO_SLOT_NONE 255
 
 static inline u32 fifo_size(void)
 {
@@ -27,17 +31,6 @@ static inline bool boolify(u32 v)
 	return !!(v);
 }
 
-/*
- * VP's start at VP_CTRL_OFFSET
- * I think theres 8 fifo registers
- * based on that the first 4 dont work i think thoose are ads.
- * but the last 4 are up for graps.
- *
- * I hope its the same in revision 3, that would explain the 'mystery codec'
- *
- * VP_SLOT_START + (8*4) i think its two PP fifo registers
- * My guess is ads, and then regular
- * */
 static inline void push(struct avd_dev *avd, struct avd_ctx *ctx, u32 inst)
 {
 	avd_w32(ctrl, VP_SLOT_START + (ctx->vp_slot * 4), inst);
@@ -62,13 +55,13 @@ static inline void push_address(struct avd_dev *avd, struct avd_ctx *ctx,
 #endif
 
 #ifdef DEBUG_INST_ADDR
-#define pusha(inst, name, i)                                      \
-	do {                                                      \
-		dev_info(ctx->dev->dev, "%8llx  | %s[%d] (high)", \
-			 (inst) >> 32, name, i);                  \
-		dev_info(ctx->dev->dev, "%8llx  | %s[%d]",        \
-			 (inst) & 0xffffffff, name, i);           \
-		push_address(avd, ctx, inst)                      \
+#define pusha(inst, name, i)                                                   \
+	do {                                                                   \
+		dev_info(ctx->dev->dev, "%8llx | %s[%d]", (inst) & 0xffffffff, \
+			 name, i);                                             \
+		dev_info(ctx->dev->dev, "%8llx | %s[%d] (high)", (inst) >> 32, \
+			 name, i);                                             \
+		push_address(avd, ctx, inst);                                  \
 	} while (0)
 
 #else
