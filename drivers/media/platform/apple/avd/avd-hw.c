@@ -14,7 +14,7 @@
 
 /* sorry for all the "magic" numbers in this file */
 
-static void apply_tunatables(struct avd_dev *avd)
+void avd_hw_tunatables(struct avd_dev *avd)
 {
 #define w32(off, val) (avd_w32(ctrl, off, val))
 	w32(0x0008, 0x80000000);
@@ -250,15 +250,9 @@ int avd_boot(struct avd_dev *avd)
 	avd_w32(base, 0x1000000, 0xfff);
 	dev_info_once(avd->dev, "booting hw version: %04x", avd_r32(ctrl, 0));
 
-	// unsure if i need this
-	memset_io(avd->code, 0, 0x10000);
-	memset_io(avd->sram, 0, 0x10000);
+	if (avd->variant->hw_init)
+		avd->variant->hw_init(avd);
 
-	apply_tunatables(avd);
-
-	/* needed */
-	// wrap ctrl init
-	// cm3 specifik
 	avd_w32(wrap, 0x14, 1);
 	avd_w32(wrap, 0x18, 0);
 
@@ -277,10 +271,6 @@ int avd_boot(struct avd_dev *avd)
 
 	avd_w32(wrap, 0x14, 0);
 
-	if (avd->fw->size != 0x10000) {
-		dev_err(avd->dev, "fw has wrong size: 0x%lx", avd->fw->size);
-		return -EINVAL;
-	}
 	memcpy_toio(avd->code, avd->fw->data, avd->fw->size);
 
 	avd_w32(mbox, 0x08, 0xe);
@@ -312,7 +302,7 @@ void avd_shutdown(struct avd_dev *avd)
 	avd_w32(mbox, 0x48, 0x0);
 }
 
-static void avd_prepare(struct avd_dev *avd)
+void avd_hw_prepare_stream(struct avd_dev *avd)
 {
 #define w32(off, val) (avd_w32(ctrl, off, val))
 #define r32(off) (avd_r32(ctrl, off))
@@ -427,7 +417,8 @@ void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 	/* dev_info(avd->dev, "configure: %012llx %01x %01x", */
 	/* 		addr, fifo_idx, vp_slot); */
 
-	avd_prepare(avd);
+	if (avd->variant->hw_prepare_stream)
+		avd->variant->hw_prepare_stream(avd);
 
 	w32(ADDR_HIGH(fifo_idx), addr >> 32);
 	w32(ADDR_LOW(fifo_idx), addr & 0xffffffff);

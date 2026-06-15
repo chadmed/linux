@@ -29,7 +29,34 @@
 #include <media/videobuf2-v4l2.h>
 
 #include "avd.h"
-#include "avd-inst.h"
+
+int alloc_slots(struct avd_dev *avd, struct avd_ctx *ctx, enum avd_codec codec) {
+	u32 free;
+	u32 offset = 0;
+	for (int i = 0; i < codec; i++)
+		offset += avd->variant->vp_slots[i];
+
+	free = find_next_zero_bit(&avd->vp_slots,
+			offset + avd->variant->vp_slots[codec],
+			offset);
+
+	if (free >= offset + avd->variant->vp_slots[codec])
+		return -ENOMEM;
+
+	set_bit(free, &avd->vp_slots);
+	ctx->vp_slot = free;
+
+	ctx->fifo_idx = find_first_zero_bit(&avd->inst_fifo_slots,
+			avd->variant->fifo_slots);
+
+	if (WARN_ON(ctx->fifo_idx >= avd->variant->fifo_slots)) {
+		clear_bit(free, &avd->vp_slots);
+		return -ENOMEM;
+	}
+	set_bit(ctx->fifo_idx,  &avd->inst_fifo_slots);
+
+	return 0;
+}
 
 int avd_buf_alloc(struct avd_dev *avd, struct avd_buf *buf, size_t size)
 {
@@ -88,10 +115,8 @@ static void avd_watchdog_func(struct work_struct *work)
 	dev_err(avd->dev, "Frame processing timed out! Vp: %d (%02d)",
 		ctx->vp_slot, ctx->fifo_idx);
 
-	clear_bit(ctx->vp_slot, &avd->vp_slots);
-	ctx->vp_slot = VP_SLOT_NONE;
-	clear_bit(ctx->fifo_idx, &avd->inst_fifo_slots);
-	ctx->fifo_idx = INST_FIFO_SLOT_NONE;
+	free_vp_slot(avd, ctx);
+	free_inst_slot(avd, ctx);
 
 	avd_w32(wrap, 0x18, 0);
 	ret = avd_reset(avd);
@@ -124,12 +149,9 @@ static irqreturn_t avd_irq_handler(int irq, void *data)
 		/* pp is done ! we are done*/
 		state = VB2_BUF_STATE_DONE;
 
-		clear_bit(ctx->fifo_idx, &avd->inst_fifo_slots);
-		ctx->fifo_idx = INST_FIFO_SLOT_NONE;
+		free_inst_slot(avd, ctx);
 	} else if (status & 0x100) {
-		clear_bit((status & 0xf) - 4, &avd->vp_slots);
-
-		ctx->vp_slot = VP_SLOT_NONE;
+		free_vp_slot(avd, ctx);
 		/* a vp is done, kick the pp and hope for the best */
 		/* clang-format off */
 		avd_w32(ctrl, 0x30,
@@ -140,7 +162,7 @@ static irqreturn_t avd_irq_handler(int irq, void *data)
 		/* clang-format done */
 		goto done;
 	} else {
-		dev_err(avd->dev, "H%d error (%02d)", status, ctx->fifo_idx);
+		dev_err(avd->dev, "H%d %02d error", status, ctx->fifo_idx);
 		/* let watchdog handle */
 		goto done;
 	}
@@ -166,30 +188,6 @@ static void avd_device_run(void *priv)
 	ret = pm_runtime_resume_and_get(avd->dev);
 	if (ret < 0) {
 		avd_job_finish_no_pm(ctx, VB2_BUF_STATE_ERROR);
-		return;
-	}
-
-	/* TODO: better scheduling */
-	if (ctx->fh.m2m_ctx->new_frame) {
-		u8 free = find_first_zero_bit(&avd->vp_slots, VP_SLOT_NUM);
-
-		if (free == VP_SLOT_NUM) {
-			ctx->vp_slot = VP_SLOT_NONE;
-		} else {
-			set_bit(free, &avd->vp_slots);
-
-			ctx->vp_slot = free + 4;
-			free = find_first_zero_bit(&avd->inst_fifo_slots, INST_FIFO_SLOT_NUM);
-			ctx->fifo_idx = free; /* should always be valid? */
-			set_bit(free, &avd->inst_fifo_slots);
-			if (WARN_ON(free == INST_FIFO_SLOT_NUM))
-				dev_err(avd->dev, "no fifo slot?");
-		}
-	}
-
-	if (ctx->vp_slot == VP_SLOT_NONE) {
-		avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
-		dev_err(avd->dev, "no assigned vp slot!");
 		return;
 	}
 
@@ -396,9 +394,56 @@ static void avd_v4l2_cleanup(struct avd_dev *avd)
 	v4l2_device_unregister(&avd->v4l2_dev);
 }
 
+/* TODO: can it really only decode one frame at a time? */
+static const struct avd_variant avd_t8103_variant = {
+	.vp_slots = {
+		[AVD_CODEC_HEVC] = 2, /* no sure */
+		[AVD_CODEC_H264] = 1,
+		[AVD_CODEC_VP9] = 1,
+	},
+	.fifo_slots = 7,
+	.capabilities = AVD_CAPABILITY_HEVC |
+			AVD_CAPABILITY_H264 |
+			AVD_CAPABILITY_VP9,
+};
+
+static const struct avd_variant avd_t8112_variant = {
+	.vp_slots = {
+		[AVD_CODEC_HEVC] = 4,
+		[AVD_CODEC_H264] = 4,
+		[AVD_CODEC_VP9] = 1,
+	},
+	.fifo_slots = 15, /* maybe? at least for t6020 */
+	.capabilities = AVD_CAPABILITY_HEVC |
+			AVD_CAPABILITY_H264 |
+			AVD_CAPABILITY_VP9,
+	.hw_prepare_stream = avd_hw_prepare_stream,
+	.hw_init = avd_hw_tunatables
+};
+
+/* can also be derived from a version register */
+static const struct of_device_id avd_of_match[] = {
+	{
+		.compatible = "apple,t8103-avd",
+		.data = &avd_t8103_variant
+	},
+	{
+		.compatible = "apple,t8112-avd",
+		.data = &avd_t8112_variant
+	},
+	{
+		.compatible = "apple,t6020-avd",
+		.data = &avd_t8112_variant
+	},
+	{},
+};
+
+MODULE_DEVICE_TABLE(of, avd_of_match);
+
 static int avd_probe(struct platform_device *pdev)
 {
 	struct avd_dev *avd;
+	const struct of_device_id *match;
 	int ret, irq;
 
 	avd = devm_kzalloc(&pdev->dev, sizeof(*avd), GFP_KERNEL);
@@ -411,6 +456,9 @@ static int avd_probe(struct platform_device *pdev)
 
 	mutex_init(&avd->vdev_lock);
 	mutex_init(&avd->dev_mutex);
+
+	match = of_match_node(avd_of_match, pdev->dev.of_node);
+	avd->variant = match->data;
 
 	avd->rstc = devm_reset_control_get_exclusive(avd->dev, NULL);
 
@@ -465,7 +513,7 @@ static int avd_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	pm_runtime_set_autosuspend_delay(avd->dev, 50);
+	pm_runtime_set_autosuspend_delay(avd->dev, 100);
 	pm_runtime_use_autosuspend(avd->dev);
 	pm_runtime_enable(avd->dev);
 
@@ -514,20 +562,10 @@ static int avd_runtime_suspend(struct device *dev)
 	return 0;
 }
 
-/* TODO */
-const struct avd_coded_fmt_ops avd_vp9_fmt_ops;
-
 static const struct dev_pm_ops avd_pm_ops = { SET_SYSTEM_SLEEP_PM_OPS(
 	pm_runtime_force_suspend,
 	pm_runtime_force_resume) SET_RUNTIME_PM_OPS(avd_runtime_suspend,
 						    avd_runtime_resume, NULL) };
-
-static const struct of_device_id avd_of_match[] = {
-	{ .compatible = "apple,t8103-avd" },
-	{ .compatible = "apple,t6020-avd" },
-	{},
-};
-MODULE_DEVICE_TABLE(of, avd_of_match);
 
 static struct platform_driver avd_driver = {
 	.probe = avd_probe,

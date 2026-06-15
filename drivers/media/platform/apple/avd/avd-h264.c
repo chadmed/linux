@@ -60,6 +60,10 @@ struct avd_h264_ctx {
 	} bufs;
 };
 
+/* ffmpeg submits wrong timestamp, use first_mb_in_slice as a workaround */
+#define is_new_frame(sl) (sl->first_mb_in_slice == 0) /* (ctx->fh.m2m_ctx->new_frame) */
+
+
 /* scaling matrix */
 static const u32 default_8x8_intra[] = {
 	0x060a0d10, 0x0a0b1012, 0x0d101217, 0x10121719, 0x1217191b, 0x17191b1d,
@@ -181,7 +185,7 @@ static void stream_hdr(struct avd_ctx *ctx, struct avd_h264_run *run)
 			| 0x80000
 			, "hdr_34_start_hdr");
 
-	push(0x1000000, "hdr_38_mode"); /* dma thing? */
+	push(AVD_CODEC_H264 << 24, "hdr_38_mode");
 
 	push(((height - 1) << 16) | (width - 1), "hdr_3c_height_width");
 
@@ -540,6 +544,7 @@ static int avd_h264_validate_sps(struct avd_ctx *ctx,
 		/* Luma and chroma bit depth mismatch */
 		return -EINVAL;
 	if (!(sps->flags & V4L2_H264_SPS_FLAG_FRAME_MBS_ONLY))
+		/* no interlaced support */
 		return -EINVAL;
 
 	return 0;
@@ -580,9 +585,10 @@ err_free_ctx:
 static void avd_h264_stop(struct avd_ctx *ctx)
 {
 	avd_h264_free_bufs(ctx);
-	/* TODO */
-	clear_bit(ctx->vp_slot - 4, &ctx->dev->vp_slots);
-	clear_bit(ctx->fifo_idx, &ctx->dev->inst_fifo_slots);
+
+	/* needed for all so automatic? */
+	free_vp_slot(ctx->dev, ctx);
+	free_inst_slot(ctx->dev, ctx);
 }
 
 static void avd_h264_run_preamble(struct avd_ctx *ctx, struct avd_h264_run *run)
@@ -643,10 +649,21 @@ static int avd_h264_run(struct avd_ctx *ctx)
 
 	avd_run_postamble(ctx, &run.base);
 
-	if (ctx->fh.m2m_ctx->new_frame) {
+	if (is_new_frame(run.sl)) {
+		ret = alloc_slots(avd, ctx, AVD_CODEC_H264);
+		if (ret) {
+			dev_err(avd->dev, "no free slots: %d", ret);
+			return ret;
+		}
 		avd_configure_stream(ctx->dev, h264_ctx->bufs.inst.addr,
 				     ctx->fifo_idx, ctx->vp_slot);
 		stream_hdr(ctx, &run);
+	}
+
+	if (ctx->vp_slot == VP_SLOT_NONE) {
+		/* Only happens if its a multi slice frame and there was an error */
+		dev_err(avd->dev, "no assigned VP slots: %04lx", avd->vp_slots);
+		return -ENOMEM;
 	}
 
 	schedule_delayed_work(&ctx->watchdog_work, msecs_to_jiffies(2000));

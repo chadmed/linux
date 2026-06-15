@@ -1,6 +1,7 @@
 #ifndef AVD_H_
 #define AVD_H_
 
+#include "linux/bitmap.h"
 #include <linux/platform_device.h>
 #include <linux/firmware.h>
 #include <linux/iommu.h>
@@ -16,6 +17,14 @@
 #define AVD_CAPABILITY_VP9 BIT(2)
 
 struct avd_ctx;
+struct avd_dev;
+
+/* Matches hdr mode (inst stream) and register layout */
+enum avd_codec {
+	AVD_CODEC_HEVC = 0,
+	AVD_CODEC_H264 = 1,
+	AVD_CODEC_VP9 = 2
+};
 
 struct avd_run {
 	struct {
@@ -43,7 +52,6 @@ struct avd_decoded_buffer {
 		u32 offsets[4]; /* sizes or offsets */
 		u32 size;
 	} rvra;
-	/* do all codecs have buffers like sps/pps/unk */
 };
 
 static inline struct avd_decoded_buffer *
@@ -87,6 +95,16 @@ struct avd_coded_fmt_desc {
 	const struct avd_decoded_fmt_desc *decoded_fmts;
 	u32 subsystem_flags;
 	unsigned int capability;
+};
+
+struct avd_variant {
+	unsigned int vp_slots[4];
+	unsigned int fifo_slots;
+	unsigned int capabilities;
+	/* do something before each stream */
+	void (*hw_prepare_stream)(struct avd_dev *avd);
+	/* do something on each boot */
+	void (*hw_init)(struct avd_dev *avd);
 };
 
 struct avd_dev {
@@ -135,7 +153,7 @@ struct avd_dev {
 	 */
 	unsigned long inst_fifo_slots;
 
-	atomic_t job_seq; /* for dbg only */
+	const struct avd_variant *variant;
 };
 
 struct avd_ctx {
@@ -297,6 +315,20 @@ static inline u32 calc_rvra(struct avd_ctx *ctx)
 	return size;
 }
 
+int alloc_slots(struct avd_dev *avd, struct avd_ctx *ctx, enum avd_codec codec);
+
+static inline void free_vp_slot(struct avd_dev *avd, struct avd_ctx *ctx)
+{
+	clear_bit(ctx->vp_slot, &avd->vp_slots);
+	ctx->vp_slot = -1;
+}
+
+static inline void free_inst_slot(struct avd_dev *avd, struct avd_ctx *ctx)
+{
+	clear_bit(ctx->fifo_idx, &avd->inst_fifo_slots);
+	ctx->fifo_idx = -1;
+}
+
 static inline void *avd_get_ctrl(struct avd_ctx *ctx, u32 id)
 {
 	struct v4l2_ctrl *ctrl;
@@ -320,6 +352,8 @@ int avd_boot(struct avd_dev *avd);
 void avd_shutdown(struct avd_dev *avd);
 
 void avd_status(struct avd_dev *avd, u32 vp);
+void avd_hw_prepare_stream(struct avd_dev *avd);
+void avd_hw_tunatables(struct avd_dev *avd);
 void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 			  u32 vp_slot);
 
