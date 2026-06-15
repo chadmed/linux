@@ -86,11 +86,6 @@ static bool avd_is_valid_fmt(struct avd_ctx *ctx, u32 fourcc,
 static void avd_fill_decoded_pixfmt(struct avd_ctx *ctx,
 				    struct v4l2_pix_format_mplane *pix_mp)
 {
-	/* TODO: per codec things with this if it differs?
-	 * I think it
-	 * */
-	pix_mp->width = ALIGN(pix_mp->width, 64);
-
 	v4l2_fill_pixfmt_mp(pix_mp, pix_mp->pixelformat, pix_mp->width,
 			    pix_mp->height);
 	pix_mp->plane_fmt[pix_mp->num_planes - 1].sizeimage +=
@@ -262,7 +257,6 @@ static const struct avd_ctrl_desc avd_h264_ctrl_descs[] = {
 		/* annex b is also possibly but a bit more painfull */
 	},
 	{
-		/* what TODO: did not know you could do this! */
 		.cfg.id = V4L2_CID_MPEG_VIDEO_H264_PROFILE,
 		.cfg.min = V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE,
 		.cfg.max = V4L2_MPEG_VIDEO_H264_PROFILE_HIGH_422_INTRA,
@@ -284,13 +278,12 @@ static const struct avd_ctrls avd_h264_ctrls = {
 };
 
 static const struct avd_decoded_fmt_desc avd_h264_decoded_fmts[] = {
-	/* TODO: what format? */
 	{
 		.fourcc = V4L2_PIX_FMT_NV12,
 		.image_fmt = AVD_IMG_FMT_420_8BIT,
 	},
 	{
-		.fourcc = V4L2_PIX_FMT_NV15,
+		.fourcc = V4L2_PIX_FMT_P010,
 		.image_fmt = AVD_IMG_FMT_420_10BIT,
 	},
 	{
@@ -298,7 +291,8 @@ static const struct avd_decoded_fmt_desc avd_h264_decoded_fmts[] = {
 		.image_fmt = AVD_IMG_FMT_422_8BIT,
 	},
 	{
-		.fourcc = V4L2_PIX_FMT_NV20,
+		/* TODO: missing P210 */
+		.fourcc = V4L2_PIX_FMT_P010,
 		.image_fmt = AVD_IMG_FMT_422_10BIT,
 	},
 };
@@ -353,7 +347,7 @@ static const struct avd_coded_fmt_desc avd_coded_fmts[] = {
 		.frmsize = {
 			.min_width = 64,
 			.max_width = 4096,
-			.step_width = 16,
+			.step_width = 64,
 			.min_height = 64,
 			.max_height = 4096,
 			.step_height = 16,

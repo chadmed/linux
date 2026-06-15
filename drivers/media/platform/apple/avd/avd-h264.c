@@ -166,14 +166,9 @@ static void stream_hdr(struct avd_ctx *ctx, struct avd_h264_run *run)
 	const struct v4l2_ctrl_h264_pps *pps = run->pps;
 	struct avd_dev *avd = ctx->dev;
 	struct avd_h264_ctx *h264_ctx = ctx->priv;
+	u32 width = (sps->pic_width_in_mbs_minus1 + 1) * 16;
+	u32 height = (sps->pic_height_in_map_units_minus1 + 1) * 16;
 
-	/* i think theres more to this.
-	 * At least ads (i think) is 0xa00 instead
-	 *
-	 * I cant test if this is also true for v3.
-	 * 0x200 could be to use u64 value addresses, while 0x100 is u32 >> (7|8)
-	 * But i need to test that
-	 * */
 	push(0x2b000000
 			| ((ctx->fifo_idx & 0xf) << 4)
 			| 0x200,
@@ -188,13 +183,11 @@ static void stream_hdr(struct avd_ctx *ctx, struct avd_h264_run *run)
 
 	push(0x1000000, "hdr_38_mode"); /* dma thing? */
 
-	push((((fmt_height(ctx) - 1) & 0xffff) << 16)
-			| ((fmt_width(ctx) - 1) & 0xffff),
-			"hdr_3c_height_width");
+	push(((height - 1) << 16) | (width - 1), "hdr_3c_height_width");
 
 	push(0, "hdr_40_zero");
 
-	push((((fmt_height(ctx) - 1) >> 3) << 16) | ((fmt_width(ctx) - 1) >> 3),
+	push((((height - 1) >> 3) << 16) | ((width - 1) >> 3),
 			"hdr_28_height_width_shift3");
 
 	push((sps->chroma_format_idc & 3) << 24
@@ -240,15 +233,12 @@ static void stream_hdr(struct avd_ctx *ctx, struct avd_h264_run *run)
 			"hdr_c0_curr_ref_addr_lsb7", i);
 
 	pusha(run->addresses.y, "hdr_210_y_addr_lsb8", 0);
-
-	push(fmt_in_width(ctx), "hdr_218_width_align");
+	push(ctx->decoded_fmt.fmt.pix_mp.plane_fmt[0].bytesperline, "hdr_218_width_align");
 	pusha(run->addresses.uv,"hdr_214_uv_addr_lsb8", 0);
-	push(fmt_in_width(ctx), "hdr_21c_width_align");
+	push(ctx->decoded_fmt.fmt.pix_mp.plane_fmt[0].bytesperline, "hdr_21c_width_align");
 
 	push(0x0, "cm3_mark_end_section");
-	push((((fmt_height(ctx) - 1) & 0xffff) << 16)
-			| ((fmt_width(ctx) - 1) & 0xffff),
-			"hdr_54_height_width");
+	push(((height - 1) << 16) | (width - 1), "hdr_54_height_width");
 
 	if (!(decode->flags & V4L2_H264_DECODE_PARAM_FLAG_IDR_PIC))
 		stream_refs(ctx, run);
@@ -342,6 +332,7 @@ static u32 stream_slice(struct avd_ctx *ctx, struct avd_h264_run *run)
 {
 	const struct v4l2_ctrl_h264_decode_params *decode = run->decode;
 	const struct v4l2_ctrl_h264_pps *pps = run->pps;
+	const struct v4l2_ctrl_h264_sps *sps = run->sps;
 	const struct v4l2_ctrl_h264_slice_params *sl = run->sl;
 	struct avd_dev *avd = ctx->dev;
 	struct vb2_v4l2_buffer *src = v4l2_m2m_next_src_buf(ctx->fh.m2m_ctx);
@@ -375,8 +366,8 @@ static u32 stream_slice(struct avd_ctx *ctx, struct avd_h264_run *run)
 	push(payload_len - off, "slc_a88_slice_hdr_size");
 
 	push(0x2c000000
-			| (sl->first_mb_in_slice / (fmt_width(ctx) >> 4) << 12)
-			|  sl->first_mb_in_slice % (fmt_width(ctx) >> 4),
+			| (sl->first_mb_in_slice / (sps->pic_width_in_mbs_minus1 + 1) << 12)
+			|  sl->first_mb_in_slice % (sps->pic_width_in_mbs_minus1 + 1),
 			"cm3_cmd_exec_mb_vp");
 
 	push(0x2d900000
@@ -417,10 +408,10 @@ static u32 stream_slice(struct avd_ctx *ctx, struct avd_h264_run *run)
 		stream_weights(ctx, run);
 	}
 
-	if (ctx->fh.m2m_ctx->new_frame) {
+	if (sl->first_mb_in_slice == 0) {
 		push(0x2a000000, "cm3_cmd_set_mb_dims");
-		push((((fmt_height(ctx) - 1) >> 4) << 12)
-				| ((fmt_width(ctx) - 1) >> 4), "cm3_set_mb_dims");
+		push(((sps->pic_height_in_map_units_minus1) << 12)
+				| (sps->pic_width_in_mbs_minus1), "cm3_set_mb_dims");
 	}
 
 	x = 0;
@@ -496,7 +487,7 @@ static int avd_h264_alloc_bufs(struct avd_ctx *ctx)
 		u32 mul = fmt_width(ctx) / 16;
 		u32 size = i == 0 ? 0x20000 :
 			   i == 1 ? (16 + 8 + 8) * mul :
-			   i == 2 ? fmt_in_width(ctx) > 2048 ?
+			   i == 2 ? ctx->decoded_fmt.fmt.pix_mp.plane_fmt[0].bytesperline > 2048 ?
 				    0xc000 :
 				    (64 + 1 * 32 + 1 * 32) * mul :
 				    32 * mul;
