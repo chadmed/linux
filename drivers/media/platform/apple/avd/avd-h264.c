@@ -121,29 +121,10 @@ static void stream_scaling(struct avd_ctx *ctx, struct avd_h264_run *run)
 	const struct v4l2_ctrl_h264_pps *pps = run->pps;
 	const struct v4l2_ctrl_h264_scaling_matrix *scaling = run->scaling;
 	struct avd_dev *avd = ctx->dev;
-	/* this has just worked, im even missing some stuff so idk */
 
-	push(0x1000000
-			| ((64 / 4) << 5)
-			| (((16 / 4) << 5) - 1), "hdr_30_seq_scaling_list_dims");
-	for (int i = 0; i < 6; i++)
-		for (int j = 0; j < 16; j+=4)
-			push((scaling->scaling_list_4x4[i][j + 0] << 24)
-				| (scaling->scaling_list_4x4[i][j + 1] << 16)
-				| (scaling->scaling_list_4x4[i][j + 2] << 8)
-				| (scaling->scaling_list_4x4[i][j + 3]),
-				"scl_28c_seq_scaling_matrix_4x4");
-
-	for (int i = 0; i < 6; i++)
-		for (int j = 0; j < 64; j+=4)
-			push((scaling->scaling_list_8x8[i][j + 0] << 24)
-				| (scaling->scaling_list_8x8[i][j + 1] << 16)
-				| (scaling->scaling_list_8x8[i][j + 2] << 8)
-				| (scaling->scaling_list_8x8[i][j + 3]),
-				"scl_2ec_seq_scaling_matrix_8x8");
-
-	push( ((64 / 4) << 5)
+	push(0x1000000 | ((64 / 4) << 5)
 		| (((16 / 4) << 5) - 1), "hdr_4c_pic_scaling_list_dims");
+
 	for (int i = 0; i < 6; i++)
 		for (int j = 0; j < 16; j+=4)
 			push((scaling->scaling_list_4x4[i][j + 0] << 24)
@@ -152,14 +133,24 @@ static void stream_scaling(struct avd_ctx *ctx, struct avd_h264_run *run)
 					| (scaling->scaling_list_4x4[i][j + 3]),
 					"scl_46c_pic_scaling_matrix_4x4");
 
+	/* Instead of 8x8 raster scan order avd expects 4 4x4 subblocks */
+	static const u8 map[16] = {
+		  0,  8, 16, 24, /* top left */
+		  4, 12, 20, 28, /* top right */
+		 32, 40, 48, 56, /* bottom left */
+		 36, 44, 52, 60, /* bottom right */
+	};
+
+	/* 7.3.2.2, only matrix 0 and 1 are used if chroma_format_idc < 3 */
 	if (pps->flags & V4L2_H264_PPS_FLAG_TRANSFORM_8X8_MODE) {
-		for (int i = 0; i < 6; i++)
-			for (int j = 0; j < 64; j+=4)
-				push((scaling->scaling_list_8x8[i][j + 0] << 24)
-						| (scaling->scaling_list_8x8[i][j + 1] << 16)
-						| (scaling->scaling_list_8x8[i][j + 2] << 8)
-						| (scaling->scaling_list_8x8[i][j + 3]),
+		for (int i = 0; i < 2; i++)
+			for (int j = 0; j < 16; j++)
+				push((scaling->scaling_list_8x8[i][map[j] + 0] << 24)
+						| (scaling->scaling_list_8x8[i][map[j] + 1] << 16)
+						| (scaling->scaling_list_8x8[i][map[j] + 2] << 8)
+						| (scaling->scaling_list_8x8[i][map[j] + 3]),
 						"scl_4cc_pic_scaling_matrix_8x8");
+
 	} else {
 		for (int i = 0; i < ARRAY_SIZE(default_8x8_intra); i++)
 			push(default_8x8_intra[i], "scl_4cc_pic_scaling_matrix_8x8");
