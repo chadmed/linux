@@ -536,6 +536,9 @@ err_disable_runtime_pm:
 	return ret;
 }
 
+const struct avd_coded_fmt_ops avd_hevc_fmt_ops;
+const struct avd_coded_fmt_ops avd_vp9_fmt_ops;
+
 static void avd_remove(struct platform_device *pdev)
 {
 	struct avd_dev *avd = platform_get_drvdata(pdev);
