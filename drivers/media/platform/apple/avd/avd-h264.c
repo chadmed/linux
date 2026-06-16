@@ -114,9 +114,7 @@ static void stream_refs(struct avd_ctx *ctx, struct avd_h264_run *run)
 				| (swrap(run->cur_poc - dpb[i].top_field_order_cnt, 1 << 17)),
 				"hdr_d0_ref_hdr");
 
-		for (int x = 0; x < 4; x++)
-			pusha((rvra_addr + ctx->rvra_offsets[x]),
-			      "hdr_110_ref0_addr_lsb7", i);
+		push_rvra(avd, ctx, rvra_addr, ctx->rvra_offsets);
 	}
 }
 
@@ -174,15 +172,15 @@ static void stream_hdr(struct avd_ctx *ctx, struct avd_h264_run *run)
 	u32 height = (sps->pic_height_in_map_units_minus1 + 1) * 16;
 
 	push(0x2b000000
-			| ((ctx->fifo_idx & 0xf) << 4)
-			| 0x200,
+			| (ctx->fifo_idx << 4)
+			| (avd->variant->revision == 3 ? 0x100 : 0x200),
 			"inst_fifo_start");
 
 	push(0x2db00000
 			| 0x1000
 			| ((decode->flags & V4L2_H264_DECODE_PARAM_FLAG_IDR_PIC) ? 0x2000 : 0)
 			| 0x2e0
-			| 0x80000
+			| (avd->variant->revision == 3 ? 0 : 0x80000)
 			, "hdr_34_start_hdr");
 
 	push(AVD_CODEC_H264 << 24, "hdr_38_mode");
@@ -212,29 +210,33 @@ static void stream_hdr(struct avd_ctx *ctx, struct avd_h264_run *run)
 		| swrap(pps->second_chroma_qp_index_offset, 32)
 		, "hdr_48_chroma_qp_index_offset");
 
-    push(0x30000a | 0x30, "hdr_58_const_3a");
+    push(0x30000a
+			| (avd->variant->revision == 3 ? 0 : 0x30), "hdr_58_const_3a");
 
 	push(INST_DMA2, "cm3_dma_config_1");
 	push(INST_DMA1, "cm3_dma_config_2");
+
+	if (avd->variant->revision == 3)
+		push(0, "zero");
 
 	pusha(h264_ctx->bufs.pps_tile[0].addr, "hdr_9c_pps_tile_addr_lsb8", 0);
 
 	push(INST_DMA2, "cm3_dma_config_3");
 	push(INST_DMA2, "cm3_dma_config_4");
 
-	/* Frame statistics? another pps_tile?
-	 * i have no clue. Seems to work */
-	pusha(h264_ctx->bufs.unk.addr, "unk_addr", 0);
+	if (avd->variant->revision == 3)
+		push(0, "zero");
+	else
+		/* Frame statistics? another pps_tile?
+		 * i have no clue. Seems to work */
+		pusha(h264_ctx->bufs.unk.addr, "unk_addr", 0);
 
 	pusha(h264_ctx->bufs.pps_tile[1].addr, "hdr_9c_pps_tile_addr_lsb8", 1);
 	pusha(h264_ctx->bufs.pps_tile[2].addr, "hdr_9c_pps_tile_addr_lsb8", 2);
 	pusha(h264_ctx->bufs.pps_tile[3].addr, "hdr_9c_pps_tile_addr_lsb8", 3);
 	push(INST_DMA3, "cm3_dma_config_5");
 
-
-	for (int i = 0; i < 4; i++)
-		pusha((run->addresses.rvra + ctx->rvra_offsets[i]),
-			"hdr_c0_curr_ref_addr_lsb7", i);
+	push_rvra(avd, ctx, run->addresses.rvra, ctx->rvra_offsets);
 
 	pusha(run->addresses.y, "hdr_210_y_addr_lsb8", 0);
 	push(ctx->decoded_fmt.fmt.pix_mp.plane_fmt[0].bytesperline, "hdr_218_width_align");
@@ -360,6 +362,7 @@ static u32 stream_slice(struct avd_ctx *ctx, struct avd_h264_run *run)
 		off++;
 	}
 
+
 	dma_addr_t slc_a84 = run->addresses.sl + off;
 
 	push(0x2d800000
@@ -367,6 +370,7 @@ static u32 stream_slice(struct avd_ctx *ctx, struct avd_h264_run *run)
 			| (u32)(slc_a84 >> 32), "slc_a7c_cmd_set_coded_slice");
 	push((u32)(slc_a84 & 0xffffffff), "slc_a84_slice_addr_low");
 
+	/* should not include trailing 0? */
 	push(payload_len - off, "slc_a88_slice_hdr_size");
 
 	push(0x2c000000
@@ -478,10 +482,12 @@ static int avd_h264_alloc_bufs(struct avd_ctx *ctx)
 		return ret;
 	}
 
-	ret = avd_buf_alloc(dev, &h264_ctx->bufs.unk, 0x200);
-	if (ret) {
-		dev_err(dev->dev, "unk alloc failed\n");
-		return ret;
+	if (ctx->dev->variant->revision != 3) {
+		ret = avd_buf_alloc(dev, &h264_ctx->bufs.unk, 0x200);
+		if (ret) {
+			dev_err(dev->dev, "unk alloc failed\n");
+			return ret;
+		}
 	}
 
 	/* TODO: VERY ugly
@@ -514,7 +520,8 @@ static void avd_h264_free_bufs(struct avd_ctx *ctx)
 	if (!h264_ctx)
 		return;
 
-	avd_buf_free(dev, &h264_ctx->bufs.unk);
+	if (ctx->dev->variant->revision != 3)
+		avd_buf_free(dev, &h264_ctx->bufs.unk);
 	avd_buf_free(dev, &h264_ctx->bufs.inst);
 
 	for (int i = 0; i < 5; i++)
@@ -655,7 +662,7 @@ static int avd_h264_run(struct avd_ctx *ctx)
 			dev_err(avd->dev, "no free slots: %d", ret);
 			return ret;
 		}
-		avd_configure_stream(ctx->dev, h264_ctx->bufs.inst.addr,
+		avd->variant->configure_stream(ctx->dev, h264_ctx->bufs.inst.addr,
 				     ctx->fifo_idx, ctx->vp_slot);
 		stream_hdr(ctx, &run);
 	}

@@ -5,7 +5,6 @@
 #include "avd.h"
 
 #define INST_OFF(idx) (0x1c8 + (idx * 4)) /* bytes of instructions written */
-#define INST_NUM 0x141c /* number of instructions since last submit ? */
 #define ADDR_LOW(idx) (0x150 + (idx * 4))
 #define ADDR_HIGH(idx) (0x30c + (idx * 4))
 
@@ -14,9 +13,147 @@
 
 /* sorry for all the "magic" numbers in this file */
 
-void avd_hw_tunatables(struct avd_dev *avd)
-{
 #define w32(off, val) (avd_w32(ctrl, off, val))
+#define m32(off, val) (avd_m32(ctrl, off, val))
+void t8103_tunatables(struct avd_dev *avd)
+{
+	w32(0x4000, 0x0);
+	w32(0x405c, 0x0);
+	w32(0x4110, 0x0);
+	w32(0x40f4, 0x1555);
+
+	w32(0x0000, 0xc0000000);
+	w32(0x1000, 0xc0000000);
+	w32(0x2000, 0xc0000000);
+	w32(0x3000, 0xc0000000);
+	w32(0x4000, 0xc0000000);
+	w32(0x5000, 0xc0000000);
+	w32(0x6000, 0xc0000000);
+	w32(0x7000, 0xc0000000);
+	w32(0x8000, 0xc0000000);
+	w32(0x9000, 0xc0000000);
+	w32(0xa000, 0xc0000000);
+	w32(0xb000, 0xc0000000);
+
+	w32(0xc010, 0x1);
+	w32(0xc018, 0x1);;
+
+	m32(0xc040, 0xc0000000);
+	m32(0xc080, 0xc0000000);
+	m32(0xc0c0, 0xc0000000);
+	m32(0xc100, 0xc0000000);
+
+	m32(0xc140, 0xc0000000);
+	m32(0xc180, 0xc0000000);
+	m32(0xc1c0, 0xc0000000);
+	m32(0xc200, 0xc0000000);
+
+	m32(0xc240, 0xc0000000);
+	m32(0xc280, 0xc0000000);
+	m32(0xc2c0, 0xc0000000);
+	m32(0xc300, 0xc0000000);
+
+	m32(0xc340, 0xc0000000);
+	m32(0xc380, 0xc0000000);
+	m32(0xc3c0, 0xc0000000);
+	m32(0xc400, 0xc0000000);
+
+	m32(0xc440, 0xc0000000);
+	m32(0xc480, 0xc0000000);
+	m32(0xc4c0, 0xc0000000);
+	m32(0xc500, 0xc0000000);
+
+	m32(0xc540, 0xc0000000);
+	m32(0xc580, 0xc0000000);
+	m32(0xc5c0, 0xc0000000);
+	m32(0xc600, 0xc0000000);
+
+	m32(0xc640, 0xc0000000);
+	m32(0xc680, 0xc0000000);
+	m32(0xc6c0, 0xc0000000);
+	m32(0xc700, 0xc0000000);
+
+	m32(0xc740, 0xc0000000);
+	m32(0xc780, 0xc0000000);
+	m32(0xc7c0, 0xc0000000);
+	m32(0xc800, 0xc0000000);
+
+	m32(0xc840, 0xc0000000);
+	m32(0xc880, 0xc0000000);
+	m32(0xc8c0, 0xc0000000);
+	m32(0xc900, 0xc0000000);
+
+	m32(0xc940, 0xc0000000);
+	m32(0xc980, 0xc0000000);
+	m32(0xc9c0, 0xc0000000);
+	m32(0xca00, 0xc0000000);
+
+	m32(0xca40, 0xc0000000);
+	m32(0xca80, 0xc0000000);
+	m32(0xcac0, 0xc0000000);
+	m32(0xcb00, 0xc0000000);
+
+	m32(0xcb40, 0xc0000000);
+	m32(0xcb80, 0xc0000000);
+	m32(0xcbc0, 0xc0000000);
+	m32(0xcc00, 0xc0000000);
+
+	m32(0xcc40, 0xc0000000);
+	m32(0xcc80, 0xc0000000);
+	m32(0xccc0, 0xc0000000);
+	m32(0xcd00, 0xc0000003);
+
+	w32(0xc044, 0x40);
+	w32(0xc084, 0x400040);
+	w32(0xc244, 0x800034);
+	w32(0xc284, 0x18);
+	w32(0xc2c4, 0xb40020);
+	w32(0xc3c4, 0xd40030);
+	w32(0xc404, 0x180014);
+	w32(0xc444, 0x104001c);
+	w32(0xc484, 0x2c0014);
+	w32(0xc4c4, 0x1200014);
+	w32(0xc504, 0x400018);
+	w32(0xc544, 0x1340024);
+	w32(0xc584, 0x580014);
+	w32(0xc5c4, 0x1580014);
+	w32(0xc1c4, 0x6c0048);
+	w32(0xc204, 0xb40048);
+	w32(0xc384, 0xfc0038);
+	w32(0xc604, 0x1340030);
+	w32(0xc644, 0x16c00b0);
+	w32(0xc684, 0x21c00b0);
+	w32(0xc844, 0x164001c);
+	w32(0xc884, 0x2cc0028);
+	w32(0xc744, 0x1800018);
+	w32(0xc784, 0x2f40020);
+	w32(0xc7c4, 0x1980018);
+	w32(0xc804, 0x314001c);
+	w32(0xc8c4, 0x1b00024);
+	w32(0xc904, 0x3300040);
+	w32(0xc944, 0x1d4001c);
+	w32(0xc984, 0x370002c);
+	w32(0xc9c4, 0x1f00030);
+	w32(0xca04, 0x39c003c);
+	w32(0xca44, 0x2200014);
+	w32(0xca84, 0x3d80014);
+	w32(0xcb04, 0x2340014);
+	w32(0xcb44, 0x3ec0014);
+	w32(0xcac4, 0x2480080);
+	w32(0xcc8c, 0x2c80014);
+	w32(0xcccc, 0x2dc0014);
+	w32(0xcc88, 0x2f00060);
+	w32(0xccc8, 0x3500054);
+	w32(0xcb84, 0x3a4001c);
+	w32(0xcbc4, 0x4000040);
+	w32(0xcc04, 0x3c00040);
+	w32(0xcc44, 0x44000c0);
+
+	m32(0x405c, 0x500000); /* 5 << 20 pp mask? */
+}
+
+void t8112_tunatables(struct avd_dev *avd)
+{
 	w32(0x0008, 0x80000000);
 
 	w32(0x1000, 0x80000000);
@@ -167,107 +304,22 @@ void avd_hw_tunatables(struct avd_dev *avd)
 	w32(0xe940, 0x800207ff);
 	w32(0xe944, 0x22003a);
 	w32(0xe980, 0x80770003);
-#undef w32
 }
-
-static int avd_pmgr(struct avd_dev *avd)
-{
-	/*
-	 * This should be deleted at some point.
-	 * If the check fails, it means the hw did not shut down
-	 */
-#define w32(off, v) avd_w32(base, off, v)
-#define chk(off, v)                                                    \
-	do {                                                           \
-		u32 value = avd_r32(base, off);                        \
-		if (value != v) {                                      \
-			dev_err(avd->dev,                              \
-				"avd_pmgr: check failed avd_r32(" #off \
-				") != " #v " actual: %8x",             \
-				value);                                \
-			return 0;                                      \
-		}                                                      \
-	} while (false)
-
-	chk(0x000, 0x10);
-	w32(0x000, 0x11);
-	chk(0x00c, 0xfffff);
-	w32(0x00c, 0xd);
-	chk(0x010, 0x7ffff);
-	w32(0x010, 0xc);
-	chk(0x014, 0x5a0);
-	w32(0x014, 0x1);
-	chk(0x018, 0x5a0);
-	w32(0x018, 0x1);
-	chk(0x01c, 0x5a0);
-	w32(0x01c, 0x3);
-	chk(0x020, 0x5a0);
-	w32(0x020, 0x3);
-	chk(0x024, 0x5a0);
-	w32(0x024, 0x3);
-	chk(0x028, 0x5a0);
-	w32(0x028, 0x3);
-	chk(0x02c, 0x5a0);
-	w32(0x02c, 0x3);
-	chk(0x108, 0x10);
-	w32(0x108, 0x11);
-	chk(0x10c, 0xfffff);
-	w32(0x10c, 0xd);
-	chk(0x110, 0x7ffff);
-	w32(0x110, 0xc);
-	chk(0x114, 0x5a0);
-	w32(0x114, 0x1);
-	chk(0x118, 0x5a0);
-	w32(0x118, 0x1);
-	chk(0x11c, 0x5a0);
-	w32(0x11c, 0x3);
-	chk(0x120, 0x5a0);
-	w32(0x120, 0x3);
-	chk(0x124, 0x5a0);
-	w32(0x124, 0x3);
-	chk(0x128, 0x5a0);
-	w32(0x128, 0x3);
-	chk(0x12c, 0x5a0);
-	w32(0x12c, 0x3);
-	chk(0x400, 0xf00008);
-	w32(0x400, 0xc0f10010);
-	chk(0xa00, 0x0);
-	w32(0xa00, 0x1ffffff);
-
-	return 0;
-#undef chk
 #undef w32
-}
 
 int avd_boot(struct avd_dev *avd)
 {
 	u32 val;
 	int ret;
-	ret = avd_pmgr(avd);
-	if (ret)
-		return ret;
 
 	avd_w32(base, 0x1000000, 0xfff);
-	dev_info_once(avd->dev, "booting hw version: %04x", avd_r32(ctrl, 0));
+	/* dev_info_once(avd->dev, "booting hw version: %04x", avd_r32(ctrl, 0)); */
 
-	if (avd->variant->hw_init)
-		avd->variant->hw_init(avd);
+	if (avd->variant->tunatables)
+		avd->variant->tunatables(avd);
 
 	avd_w32(wrap, 0x14, 1);
 	avd_w32(wrap, 0x18, 0);
-
-	avd_w32(ctrl, 0x14c, 0x14);
-	avd_w32(ctrl, 0xe4d0, 0);
-	avd_w32(ctrl, 0xe4d4, 0);
-	avd_w32(ctrl, 0xe510, 0);
-	avd_w32(ctrl, 0xe514, 0);
-
-	avd_w32(ctrl, 0xe308, 0xffffffff);
-	avd_w32(ctrl, 0xe300, 0x80023fff);
-	avd_w32(ctrl, 0xc900, 0x800113ff);
-	avd_w32(ctrl, 0xc940, 0x800113ff);
-	avd_w32(ctrl, 0xc980, 0x800113ff);
-	avd_w32(ctrl, 0xc9c0, 0x800113ff);
 
 	avd_w32(wrap, 0x14, 0);
 
@@ -276,12 +328,12 @@ int avd_boot(struct avd_dev *avd)
 	avd_w32(mbox, 0x08, 0xe);
 	avd_w32(mbox, 0x10, 0x0);
 	avd_w32(mbox, 0x48, 0x0);
-	avd_w32(mbox, 0x10, 0x0);
-	avd_w32(mbox, 0x48, 0x0);
+
 	avd_w32(mbox, 0x50, 0x1);
 	avd_w32(mbox, 0x68, 0x1);
 	avd_w32(mbox, 0x5c, 0x1);
 	avd_w32(mbox, 0x74, 0x1);
+
 	avd_w32(mbox, 0x10, 0x2);
 	avd_w32(mbox, 0x48, 0x8);
 	avd_w32(mbox, 0x08, 0x1);
@@ -294,6 +346,7 @@ int avd_boot(struct avd_dev *avd)
 	avd_w32(wrap, 0x14, 0x0);
 	return 0;
 }
+
 void avd_shutdown(struct avd_dev *avd)
 {
 	avd_w32(mbox, 0x08, 0xe);
@@ -302,124 +355,24 @@ void avd_shutdown(struct avd_dev *avd)
 	avd_w32(mbox, 0x48, 0x0);
 }
 
-void avd_hw_prepare_stream(struct avd_dev *avd)
-{
 #define w32(off, val) (avd_w32(ctrl, off, val))
 #define r32(off) (avd_r32(ctrl, off))
-#define m32(off, val) w32(off, (val) | (r32(off)))
 
-	w32(0x008, 0xc0000000);
-	w32(0x120, 5);
-	w32(0x300, 0);
-
-	w32(0x8, 0xc0000000);
-	for (int i = 0; i < 7; i++)
-		w32(0x4000 + (i * 0x100), 0xc0000000);
-
-	w32(0xc000, 1);
-	w32(0xc024, 1);
-	w32(0xe000, 1);
-	w32(0xe800, 1);
-
-	m32(0xc080, 0xc0010000);
-	m32(0xc0c0, 0xc0010000);
-	m32(0xc100, 0xc0010000);
-	m32(0xc140, 0xc0010000);
-	m32(0xc180, 0xc0010000);
-	m32(0xc1c0, 0xc0010000);
-	m32(0xc200, 0xc0010000);
-	m32(0xc240, 0xc0010000);
-	m32(0xc280, 0xc0010000);
-	m32(0xc2c0, 0xc0010000);
-	m32(0xc300, 0xc0010000);
-	m32(0xc340, 0xc0010000);
-	m32(0xc380, 0xc0010000);
-	m32(0xc3c0, 0xc0010000);
-	m32(0xc400, 0xc0010000);
-	m32(0xc440, 0xc0010000);
-	m32(0xc480, 0xc0010000);
-	m32(0xc4c0, 0xc0010000);
-	m32(0xc500, 0xc0010000);
-	m32(0xc540, 0xc0010000);
-	m32(0xc580, 0xc0010000);
-	m32(0xc5c0, 0xc0010000);
-	m32(0xc600, 0xc0010000);
-	m32(0xc640, 0xc0010000);
-	m32(0xc680, 0xc0010000);
-	m32(0xc6c0, 0xc0010000);
-	m32(0xc700, 0xc0010000);
-	m32(0xc740, 0xc0010000);
-	m32(0xc780, 0xc0010000);
-	m32(0xc7c0, 0xc0010000);
-	m32(0xc800, 0xc0010000);
-	m32(0xc840, 0xc0010000);
-	m32(0xc880, 0xc0010000);
-	m32(0xc8c0, 0xc0010000);
-	m32(0xc900, 0xc0010000);
-	m32(0xc940, 0xc0010000);
-	m32(0xc980, 0xc0010000);
-	m32(0xc9c0, 0xc0010000);
-	m32(0xe880, 0xc0020000);
-	m32(0xe8c0, 0xc0020000);
-	m32(0xe900, 0xc0020000);
-	m32(0xe940, 0xc0020000);
-	m32(0xe080, 0xc0020000);
-	m32(0xe0c0, 0xc0020000);
-	m32(0xe100, 0xc0020000);
-	m32(0xe140, 0xc0020000);
-	m32(0xe180, 0xc0020000);
-	m32(0xe1c0, 0xc0020000);
-	m32(0xe200, 0xc0020000);
-	m32(0xe240, 0xc0020000);
-	m32(0xe280, 0xc0020000);
-	m32(0xe2c0, 0xc0020000);
-	m32(0xe300, 0xc0020000);
-	m32(0xe340, 0xc0020000);
-	m32(0xe380, 0xc0020000);
-	m32(0xe3c0, 0xc0020000);
-	m32(0xe400, 0xc0020000);
-	m32(0xe440, 0xc0020000);
-	m32(0xe480, 0xc0020000);
-	m32(0xe4c0, 0xc0034000);
-	m32(0xe500, 0xc0056000);
-	m32(0xe980, 0xc0770003);
-	m32(0xe540, 0xc0020000);
-
-	/* if you dont count the 3 weird ones, its 64 writes */
-	for (int i = 0; i < 0x26; i++)
-		w32(0xc090 + (i * 0x40), i);
-	for (int i = 0; i < 0x10; i++)
-		w32(0xe090 + (i * 0x40), i + 0x26);
-	w32(0xe4ec, 0x3738); /* two in one? */
-	w32(0xe52c, 0x393a);
-	w32(0xe550, 0x3b);
-	w32(0xe890, 0x3c);
-	w32(0xe8d0, 0x3d);
-	w32(0xe910, 0x3e);
-	w32(0xe950, 0x3f);
-	w32(0xe9a8, 0x40414243); /* tree in one? */
-}
-
-void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
+void t8103_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 			  u32 vp_slot)
 {
-	/* sanity checks */
-	if (((addr >> 32) & 0x3ff) != (addr >> 32) ||
-	    (addr & 0xffffffff) != (addr & 0xffffff00))
-		dev_err(avd->dev, "configure_stream: invalid addres %llx",
-			addr);
+	w32(0x4068 + (fifo_idx * 4), addr >> 8);
+	w32(0x4084 + (fifo_idx * 4), 0x100000);
+	w32(0x40a0 + (fifo_idx * 4), 0);
+	w32(0x40bc + (fifo_idx * 4), 0);
 
-	if (fifo_idx > 0xf) {
-		dev_err(avd->dev, "configure_stream: invalid fifo index %d",
-			fifo_idx);
-		return;
-	}
-	/* dev_info(avd->dev, "configure: %012llx %01x %01x", */
-	/* 		addr, fifo_idx, vp_slot); */
+	w32(0x4040 + (vp_slot * 4), 0);
+	m32(0x405c, 7 << (vp_slot *5)); /* irq mask */
+}
 
-	if (avd->variant->hw_prepare_stream)
-		avd->variant->hw_prepare_stream(avd);
-
+void t8112_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
+			  u32 vp_slot)
+{
 	w32(ADDR_HIGH(fifo_idx), addr >> 32);
 	w32(ADDR_LOW(fifo_idx), addr & 0xffffffff);
 	/* unkown AVD_VP_INSN_FIFO_MASK */
@@ -427,22 +380,17 @@ void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 	/* unkown AVD_VP_INSN_FIFO_CACH */
 	w32(0x204 + (fifo_idx * 4), 0);
 	w32(INST_OFF(fifo_idx), 0); /* clear instruction offset */
-	w32(0x2b0 + (fifo_idx * 4), 1);
 
-	w32(0x84 + (vp_slot * 4), 0);
 	m32(0x0fc + (vp_slot * 4), 7); /* irq mask */
-
-	w32(0x1000 + (vp_slot * 0x100), 0xc0000000);
-
 	m32(0x120, 5);
 }
 
 void avd_status(struct avd_dev *avd, u32 vp)
 {
-	if (vp > 9)
-		return;
 	/*
-	 * + 0xc status bitmask 8 is no errors? (cleared by cm3)
+	 * The same for rev 3?
+	 *
+	 * + 0xc status bitmask 8 is no errors?
 	 * + 0x0 looks like sl->first_mb_in_slice
 	 * + 0x4 another status bitmask? 0x3f on succes? 0x40 on error?
 	 * + 0x8 slice bytes read? is almost never the same as hdr_size written
@@ -452,11 +400,6 @@ void avd_status(struct avd_dev *avd, u32 vp)
 		 r32(start + 4), r32(start + 8), r32(start + 12));
 	dev_info(avd->dev, "VP%d: %08x %08x %08x", vp, r32(start + 16),
 		 r32(start + 20), r32(start + 24));
-	if (r32(INST_FIFO_CACHE_USED(vp)) == r32(INST_FIFO_CACHE_CAPACITY(vp)))
-		dev_warn_ratelimited(avd->dev,
-				     "VP%d: instruction cache full! %02x/%02x",
-				     vp, r32(INST_FIFO_CACHE_USED(vp)),
-				     r32(INST_FIFO_CACHE_CAPACITY(vp)));
 }
 
 #undef w32

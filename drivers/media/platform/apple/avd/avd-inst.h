@@ -33,14 +33,28 @@ static inline bool boolify(u32 v)
 
 static inline void push(struct avd_dev *avd, struct avd_ctx *ctx, u32 inst)
 {
-	avd_w32(ctrl, VP_SLOT_START + (ctx->vp_slot * 4), inst);
+	avd_w32(ctrl, avd->variant->vp_slot_offset + (ctx->vp_slot * 4), inst);
 }
 static inline void push_address(struct avd_dev *avd, struct avd_ctx *ctx,
 				dma_addr_t addr)
 {
-	/* i really hope i dont have the whole >> 7 or 8 step with the addresses */
-	push(avd, ctx, (u32)(addr & 0xffffffff));
-	push(avd, ctx, (u32)(addr >> 32));
+	if (avd->variant->revision == 4) {
+		push(avd, ctx, (u32)(addr & 0xffffffff));
+		push(avd, ctx, (u32)(addr >> 32));
+	} else {
+		push(avd, ctx, (addr >> 8));
+	}
+}
+static inline void push_rvra(struct avd_dev *avd, struct avd_ctx *ctx,
+		dma_addr_t addr, u32 offsets[4])
+{
+	if (avd->variant->revision == 4) {
+		for (int i = 0; i < 4; i++)
+			push_address(avd, ctx, (addr + offsets[i]));
+	} else {
+		for (int i = 0; i < 4; i++)
+			push(avd, ctx, (addr + offsets[i]) >> 7);
+	}
 }
 
 #ifdef DEBUG_INST

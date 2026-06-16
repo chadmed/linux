@@ -101,10 +101,14 @@ struct avd_variant {
 	unsigned int vp_slots[4];
 	unsigned int fifo_slots;
 	unsigned int capabilities;
-	/* do something before each stream */
-	void (*hw_prepare_stream)(struct avd_dev *avd);
-	/* do something on each boot */
-	void (*hw_init)(struct avd_dev *avd);
+	void (*configure_stream)(struct avd_dev *avd, dma_addr_t addr,
+			u8 fifo_idx, u32 vp_slot);
+	void (*tunatables)(struct avd_dev *avd);
+	const char* fw_name;
+	unsigned char revision; /* the same as the device tree */
+	/* just for convenience */
+	u32 vp_slot_offset;
+	u32 submit_offset;
 };
 
 struct avd_dev {
@@ -352,9 +356,14 @@ int avd_boot(struct avd_dev *avd);
 void avd_shutdown(struct avd_dev *avd);
 
 void avd_status(struct avd_dev *avd, u32 vp);
-void avd_hw_prepare_stream(struct avd_dev *avd);
-void avd_hw_tunatables(struct avd_dev *avd);
-void avd_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
+
+void t8103_tunatables(struct avd_dev *avd);
+void t8112_tunatables(struct avd_dev *avd);
+
+void t8103_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
+			  u32 vp_slot);
+
+void t8112_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 			  u32 vp_slot);
 
 #endif /* AVD_H_ */

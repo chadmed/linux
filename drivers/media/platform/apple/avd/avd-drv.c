@@ -140,8 +140,8 @@ static irqreturn_t avd_irq_handler(int irq, void *data)
 	status = avd_r32(mbox, 0x64);
 
 	avd_w32(mbox, 0x4c, 0x8); /* clear mbox */
-	if ((status >> 16) != 0) { /* dbg */
-		dev_warn(avd->dev, "no handler for IRQ: %3d", status >> 16);
+	if (status & 0x10000) { /* dbg */
+		dev_warn(avd->dev, "no handler for IRQ: %3d", status &~0x10000);
 		return IRQ_HANDLED;
 	}
 
@@ -152,13 +152,18 @@ static irqreturn_t avd_irq_handler(int irq, void *data)
 		free_inst_slot(avd, ctx);
 	} else if (status & 0x100) {
 		free_vp_slot(avd, ctx);
+		if (ctx->fifo_idx > avd->variant->fifo_slots) {
+			dev_err(avd->dev, "VP%d: invalid fifo slot: %d", status & ~0x100,
+					ctx->fifo_idx);
+		}
+
 		/* a vp is done, kick the pp and hope for the best */
 		/* clang-format off */
-		avd_w32(ctrl, 0x30,
+		avd_w32(ctrl, avd->variant->submit_offset,
 				0x2b000000
-				| 0x200
-				| ((ctx->fifo_idx & 0xf) << 4)
-				| 0xf);
+				| (avd->variant->revision == 3 ? 0x100 : 0x200)
+				| (ctx->fifo_idx << 4)
+				| avd->variant->fifo_slots);
 		/* clang-format done */
 		goto done;
 	} else {
@@ -192,13 +197,8 @@ static void avd_device_run(void *priv)
 	}
 
 	ret = desc->ops->run(ctx);
-	if (ret) {
-		dev_err(avd->dev, "VP%d: desc->ops->run: %d",
-				ctx->vp_slot, ret);
+	if (ret)
 		avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
-	}
-
-	return;
 }
 
 static int avd_queue_init(void *priv, struct vb2_queue *src_vq,
@@ -405,6 +405,12 @@ static const struct avd_variant avd_t8103_variant = {
 	.capabilities = AVD_CAPABILITY_HEVC |
 			AVD_CAPABILITY_H264 |
 			AVD_CAPABILITY_VP9,
+	.configure_stream = t8103_configure_stream,
+	.tunatables = t8103_tunatables,
+	.fw_name = "apple/avd-fw-v2.bin",
+	.revision = 3,
+	.vp_slot_offset = 0x4004,
+	.submit_offset = 0x4014,
 };
 
 static const struct avd_variant avd_t8112_variant = {
@@ -417,8 +423,12 @@ static const struct avd_variant avd_t8112_variant = {
 	.capabilities = AVD_CAPABILITY_HEVC |
 			AVD_CAPABILITY_H264 |
 			AVD_CAPABILITY_VP9,
-	.hw_prepare_stream = avd_hw_prepare_stream,
-	.hw_init = avd_hw_tunatables
+	.configure_stream = t8112_configure_stream,
+	.tunatables = t8112_tunatables,
+	.fw_name = "apple/avd-fw-v3.bin",
+	.revision = 4,
+	.vp_slot_offset = 0xc,
+	.submit_offset = 0x30,
 };
 
 /* can also be derived from a version register */
@@ -429,10 +439,6 @@ static const struct of_device_id avd_of_match[] = {
 	},
 	{
 		.compatible = "apple,t8112-avd",
-		.data = &avd_t8112_variant
-	},
-	{
-		.compatible = "apple,t6020-avd",
 		.data = &avd_t8112_variant
 	},
 	{},
@@ -488,15 +494,16 @@ static int avd_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	ret = request_firmware(&avd->fw, "apple/avd-v4.bin", avd->dev);
+	ret = request_firmware(&avd->fw, avd->variant->fw_name, avd->dev);
 
 	if (ret) {
 		dev_err(avd->dev, "failed to load firmware: %d", ret);
 		return ret;
 	}
 
-	/* This is a guess based on some random register write... */
-	ret = dma_set_mask_and_coherent(avd->dev, DMA_BIT_MASK(41));
+	ret = dma_set_mask_and_coherent(avd->dev,
+			DMA_BIT_MASK(avd->variant->revision == 3 ? 38 : 41));
+
 	if (ret) {
 		dev_err(avd->dev, "Failed to set DMA mask");
 		return ret;
