@@ -6,7 +6,7 @@
  * Copyright The Asahi Linux Contributors
  */
 	avd: avd@286000000 {
-		compatible =  "apple,t6020-avd";
+		compatible = "apple,t6020-avd", "apple,t8112-avd";
 		interrupt-parent = <&aic>;
 		interrupts = <AIC_IRQ 0 1088 IRQ_TYPE_LEVEL_HIGH>,
 			<AIC_IRQ 0 1089 IRQ_TYPE_LEVEL_HIGH>;
