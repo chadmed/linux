@@ -406,7 +406,6 @@ static const struct avd_variant avd_t8103_variant = {
 			AVD_CAPABILITY_H264 |
 			AVD_CAPABILITY_VP9,
 	.configure_stream = t8103_configure_stream,
-	.tunatables = t8103_tunatables,
 	.fw_name = "apple/avd-fw-v2.bin",
 	.revision = 3,
 	.vp_slot_offset = 0x4004,
@@ -424,7 +423,6 @@ static const struct avd_variant avd_t8112_variant = {
 			AVD_CAPABILITY_H264 |
 			AVD_CAPABILITY_VP9,
 	.configure_stream = t8112_configure_stream,
-	.tunatables = t8112_tunatables,
 	.fw_name = "apple/avd-fw-v3.bin",
 	.revision = 4,
 	.vp_slot_offset = 0xc,

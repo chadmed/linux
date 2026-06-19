@@ -103,7 +103,6 @@ struct avd_variant {
 	unsigned int capabilities;
 	void (*configure_stream)(struct avd_dev *avd, dma_addr_t addr,
 			u8 fifo_idx, u32 vp_slot);
-	void (*tunatables)(struct avd_dev *avd);
 	const char* fw_name;
 	unsigned char revision; /* the same as the device tree */
 	/* just for convenience */
@@ -356,9 +355,6 @@ int avd_boot(struct avd_dev *avd);
 void avd_shutdown(struct avd_dev *avd);
 
 void avd_status(struct avd_dev *avd, u32 vp);
-
-void t8103_tunatables(struct avd_dev *avd);
-void t8112_tunatables(struct avd_dev *avd);
 
 void t8103_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 			  u32 vp_slot);
