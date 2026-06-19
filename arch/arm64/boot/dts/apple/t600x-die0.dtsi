@@ -7,6 +7,36 @@
  */
 
 
+	avd: avd@286000000 {
+		compatible = "apple,t6000-avd";
+		interrupt-parent = <&aic>;
+		interrupts = <AIC_IRQ 0 1011 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 1012 IRQ_TYPE_LEVEL_HIGH>;
+		#ifdef APPLE_USE_PMP
+		power-domains = <&pmp_report_avd_sys>;
+		#else
+		power-domains = <&ps_avd_sys>;
+		#endif
+		resets = <&ps_avd_sys>;
+		reg = <0x2 0x86000000 0x0 0x1010000>,
+			<0x2 0x87080000 0x0 0x10000>,
+			<0x2 0x87090000 0x0 0x10000>,
+			<0x2 0x870a0000 0x0 0x4000>,
+			<0x2 0x87100000 0x0 0x10000>,
+			<0x2 0x87400000 0x0 0x4000>;
+		reg-names = "base", "code", "sram", "mbox", "ctrl", "wrap";
+		iommus = <&avd_dart 0>;
+	};
+
+	avd_dart: iommu@287010000 {
+		compatible = "apple,t6000-dart";
+		reg = <0x2 0x87010000 0x0 0x4000>;
+		#iommu-cells = <1>;
+		interrupt-parent = <&aic>;
+		interrupts = <AIC_IRQ 0 1018 IRQ_TYPE_LEVEL_HIGH>;
+		power-domains = <&ps_avd_sys>;
+	};
+
 	nco: clock-controller@28e03c000 {
 		compatible = "apple,t6000-nco", "apple,nco";
 		reg = <0x2 0x8e03c000 0x0 0x14000>;
