@@ -358,8 +358,9 @@ void avd_status(struct avd_dev *avd, u32 vp);
 
 void t8103_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 			  u32 vp_slot);
-
 void t8112_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
+			  u32 vp_slot);
+void t8122_configure_stream (struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 			  u32 vp_slot);
 
 #endif /* AVD_H_ */

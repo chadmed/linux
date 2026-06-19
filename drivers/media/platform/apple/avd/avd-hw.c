@@ -3,94 +3,122 @@
 #include <linux/iopoll.h>
 
 #include "avd.h"
+#include "avd-regs.h"
 
-#define INST_OFF(idx) (0x1c8 + (idx * 4)) /* bytes of instructions written */
-#define ADDR_LOW(idx) (0x150 + (idx * 4))
-#define ADDR_HIGH(idx) (0x30c + (idx * 4))
+/* The plan is to move this to the cm3 */
 
-#define INST_FIFO_CACHE_USED(slot) (0x5c + (slot * 4))
-#define INST_FIFO_CACHE_CAPACITY(slot) (0x34 + (slot * 4))
+#define AVD_V3_VP_INSN_FIFO_IOVA	0x4068
+#define AVD_V3_VP_INSN_FIFO_MASK	0x4084
+#define AVD_V3_VP_INSN_FIFO_CACH	0x40a0
+#define AVD_V3_VP_INSN_FIFO_XFER	0x40bc
+#define AVD_V3_VP_CTRL_UNK	  0x4040
+#define AVD_V3_CTRL_CM3_IRQ_MASK	0x405c
 
-/* sorry for all the "magic" numbers in this file */
+#define AVD_V4_VP_INSN_FIFO_IOVA_HI	0x30c
+#define AVD_V4_VP_INSN_FIFO_IOVA_LO	0x150
+#define AVD_V4_VP_INSN_FIFO_MASK	0x18c
+#define AVD_V4_VP_INSN_FIFO_CACH	0x1c8
+#define AVD_V4_VP_INSN_FIFO_XFER	0x204
+#define AVD_V4_VP_CTRL_CM3_IRQ_MASK	0x0fc
+#define AVD_V4_PP_CTRL_CM3_IRQ_MASK	0x120
 
-#define w32(off, val) (avd_w32(ctrl, off, val))
-#define m32(off, val) (avd_m32(ctrl, off, val))
+/* seems stabile after this */
+#define AVD_V5_VP_INSN_FIFO_IOVA_HI	0x20c
+#define AVD_V5_VP_INSN_FIFO_IOVA_LO	0x1d0
+#define AVD_V5_VP_INSN_FIFO_MASK	0x248
+#define AVD_V5_VP_INSN_FIFO_CACH	0x284
+#define AVD_V5_VP_INSN_FIFO_XFER	0x2c0
+#define AVD_V5_VP_CTRL_CM3_IRQ_MASK	0x15c
+#define AVD_V5_PP_CTRL_CM3_IRQ_MASK	0x190
+
+#define AVD_CM3_UNK	  BIT(0)
+#define AVD_CM3_ERROR	BIT(1)
+#define AVD_CM3_DONE	BIT(2)
+#define AVD_CM3_FULL	BIT(3)
+
+#define AVD_VP_CM3_MASK (AVD_CM3_UNK | AVD_CM3_ERROR | AVD_CM3_DONE)
+#define AVD_PP_CM3_MASK (AVD_CM3_UNK | AVD_CM3_DONE)
 
 int avd_boot(struct avd_dev *avd)
 {
 	u32 val;
 	int ret;
 
-	avd_w32(base, 0x1000000, 0xfff);
-	/* dev_info_once(avd->dev, "booting hw version: %04x", avd_r32(ctrl, 0)); */
+	avd_w32(base, AVD_REG_POWER_ON, 0xfff);
 
-	avd_w32(wrap, 0x14, 1);
-	avd_w32(wrap, 0x18, 0);
-
-	avd_w32(wrap, 0x14, 0);
+	if (avd->variant->revision != 3)
+		dev_info_once(avd->dev, "booting hw version: %04x", avd_r32(ctrl, 0));
 
 	memcpy_toio(avd->code, avd->fw->data, avd->fw->size);
 
-	avd_w32(mbox, 0x08, 0xe);
-	avd_w32(mbox, 0x10, 0x0);
-	avd_w32(mbox, 0x48, 0x0);
+	avd_w32(mbox, AVD_REG_RUN_CTRL, AVD_RUN_CTRL_UNK_STOP);
 
-	avd_w32(mbox, 0x50, 0x1);
-	avd_w32(mbox, 0x68, 0x1);
-	avd_w32(mbox, 0x5c, 0x1);
-	avd_w32(mbox, 0x74, 0x1);
+	avd_w32(mbox, AVD_REG_MBOX1_STATUS, AVD_MBOX_ENABLE);
 
-	avd_w32(mbox, 0x10, 0x2);
-	avd_w32(mbox, 0x48, 0x8);
-	avd_w32(mbox, 0x08, 0x1);
+	avd_w32(mbox, AVD_REG_MBOX_IRQ_ENABLE, AVD_MBOX1_NOT_EMPTY);
+	avd_w32(mbox, AVD_REG_RUN_CTRL, AVD_RUN_CTRL_UNK_RUN);
 
 	/* wait for cm3 to boot */
-	ret = readl_poll_timeout(avd->mbox + 0x90, val, val == 1, 10, 10000);
+	ret = readl_poll_timeout(avd->mbox + AVD_REG_FLAG0_SET,
+			val, val == 1, 10, 10000);
 	if (ret)
 		return ret;
 
-	avd_w32(wrap, 0x14, 0x0);
 	return 0;
 }
 
 void avd_shutdown(struct avd_dev *avd)
 {
-	avd_w32(mbox, 0x08, 0xe);
-	avd_w32(mbox, 0x98, 0x1);
-	avd_w32(mbox, 0x10, 0x0);
-	avd_w32(mbox, 0x48, 0x0);
+	avd_w32(mbox, AVD_REG_RUN_CTRL, AVD_RUN_CTRL_UNK_STOP);
+	avd_w32(mbox, AVD_REG_FLAG0_CLR, 0x1);
+	avd_w32(mbox, AVD_REG_MBOX_IRQ_ENABLE, 0x0);
 }
 
+#define m32(off, val) (avd_m32(ctrl, off, val))
 #define w32(off, val) (avd_w32(ctrl, off, val))
-#define r32(off) (avd_r32(ctrl, off))
+
 
 void t8103_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 			  u32 vp_slot)
 {
-	w32(0x4068 + (fifo_idx * 4), addr >> 8);
-	w32(0x4084 + (fifo_idx * 4), 0x100000);
-	w32(0x40a0 + (fifo_idx * 4), 0);
-	w32(0x40bc + (fifo_idx * 4), 0);
+	w32(AVD_V3_VP_INSN_FIFO_IOVA + (fifo_idx * 4), addr >> 8);
+	w32(AVD_V3_VP_INSN_FIFO_MASK + (fifo_idx * 4), 0x100000);
+	w32(AVD_V3_VP_INSN_FIFO_CACH + (fifo_idx * 4), 0);
+	w32(AVD_V3_VP_INSN_FIFO_XFER + (fifo_idx * 4), 0);
 
-	w32(0x4040 + (vp_slot * 4), 0);
-	m32(0x405c, 7 << (vp_slot * 5) | (5 << 20)); /* irq mask */
+	w32(AVD_V3_VP_CTRL_UNK + (vp_slot * 4), 0);
+	m32(AVD_V3_CTRL_CM3_IRQ_MASK,
+			AVD_VP_CM3_MASK << (vp_slot * 5)
+			| (AVD_PP_CM3_MASK << 20));
 }
 
 void t8112_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
 			  u32 vp_slot)
 {
-	w32(ADDR_HIGH(fifo_idx), addr >> 32);
-	w32(ADDR_LOW(fifo_idx), addr & 0xffffffff);
-	/* unkown AVD_VP_INSN_FIFO_MASK */
-	w32(0x18c + (fifo_idx * 4), 0);
-	/* unkown AVD_VP_INSN_FIFO_CACH */
-	w32(0x204 + (fifo_idx * 4), 0);
-	w32(INST_OFF(fifo_idx), 0); /* clear instruction offset */
+	w32(AVD_V4_VP_INSN_FIFO_IOVA_HI + (fifo_idx * 4), addr >> 32);
+	w32(AVD_V4_VP_INSN_FIFO_IOVA_LO + (fifo_idx * 4), addr & 0xffffffff);
+	w32(AVD_V4_VP_INSN_FIFO_MASK + (fifo_idx * 4), 0);
+	w32(AVD_V4_VP_INSN_FIFO_CACH + (fifo_idx * 4), 0);
+	w32(AVD_V4_VP_INSN_FIFO_XFER + (fifo_idx * 4), 0);
 
-	m32(0x0fc + (vp_slot * 4), 7); /* irq mask */
-	m32(0x120, 5);
+	m32(AVD_V4_VP_CTRL_CM3_IRQ_MASK + (vp_slot * 4), AVD_VP_CM3_MASK);
+	m32(AVD_V4_PP_CTRL_CM3_IRQ_MASK, AVD_PP_CM3_MASK);
 }
 
+void t8122_configure_stream(struct avd_dev *avd, dma_addr_t addr, u8 fifo_idx,
+			  u32 vp_slot)
+{
+	w32(AVD_V5_VP_INSN_FIFO_IOVA_HI + (fifo_idx * 4), addr >> 32);
+	w32(AVD_V5_VP_INSN_FIFO_IOVA_LO + (fifo_idx * 4), addr & 0xffffffff);
+	w32(AVD_V5_VP_INSN_FIFO_MASK + (fifo_idx * 4), 0);
+	w32(AVD_V5_VP_INSN_FIFO_CACH + (fifo_idx * 4), 0);
+	w32(AVD_V5_VP_INSN_FIFO_XFER + (fifo_idx * 4), 0);
+
+	m32(AVD_V5_VP_CTRL_CM3_IRQ_MASK + (vp_slot * 4), AVD_VP_CM3_MASK);
+	m32(AVD_V5_PP_CTRL_CM3_IRQ_MASK, AVD_PP_CM3_MASK);
+}
+
+#define r32(off) (avd_r32(ctrl, off))
 void avd_status(struct avd_dev *avd, u32 vp)
 {
 	/*

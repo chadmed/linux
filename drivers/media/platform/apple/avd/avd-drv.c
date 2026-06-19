@@ -29,6 +29,7 @@
 #include <media/videobuf2-v4l2.h>
 
 #include "avd.h"
+#include "avd-regs.h"
 
 int alloc_slots(struct avd_dev *avd, struct avd_ctx *ctx, enum avd_codec codec) {
 	u32 free;
@@ -118,11 +119,10 @@ static void avd_watchdog_func(struct work_struct *work)
 	free_vp_slot(avd, ctx);
 	free_inst_slot(avd, ctx);
 
-	avd_w32(wrap, 0x18, 0);
+	avd_w32(mbox, AVD_REG_MBOX_IRQ_ENABLE, 0);
 	ret = avd_reset(avd);
 	if (ret)
 		dev_err(avd->dev, "failed to reset: %d", ret);
-	avd_w32(wrap, 0x18, 1);
 
 	avd_job_finish(ctx, VB2_BUF_STATE_ERROR);
 }
@@ -137,11 +137,13 @@ static irqreturn_t avd_irq_handler(int irq, void *data)
 	if (!ctx)
 		return IRQ_HANDLED;
 
-	status = avd_r32(mbox, 0x64);
+	status = avd_r32(mbox, AVD_REG_MBOX1_RETRIEVE);
 
-	avd_w32(mbox, 0x4c, 0x8); /* clear mbox */
+	avd_w32(mbox, AVD_REG_MBOX_IRQ_CLR, AVD_MBOX1_NOT_EMPTY);
+
 	if (status & 0x10000) { /* dbg */
 		dev_warn(avd->dev, "no handler for IRQ: %3d", status &~0x10000);
+		avd_w32(mbox, AVD_REG_MBOX_IRQ_ENABLE, 0);
 		return IRQ_HANDLED;
 	}
 
