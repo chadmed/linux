@@ -23,7 +23,8 @@ struct avd_dev;
 enum avd_codec {
 	AVD_CODEC_HEVC = 0,
 	AVD_CODEC_H264 = 1,
-	AVD_CODEC_VP9 = 2
+	AVD_CODEC_VP9 = 2,
+	AVD_CODEC_AV1 = 3
 };
 
 struct avd_run {

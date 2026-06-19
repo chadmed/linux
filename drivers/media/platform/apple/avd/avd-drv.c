@@ -396,7 +396,6 @@ static void avd_v4l2_cleanup(struct avd_dev *avd)
 	v4l2_device_unregister(&avd->v4l2_dev);
 }
 
-/* TODO: can it really only decode one frame at a time? */
 static const struct avd_variant avd_t8103_variant = {
 	.vp_slots = {
 		[AVD_CODEC_HEVC] = 2, /* no sure */
@@ -408,10 +407,28 @@ static const struct avd_variant avd_t8103_variant = {
 			AVD_CAPABILITY_H264 |
 			AVD_CAPABILITY_VP9,
 	.configure_stream = t8103_configure_stream,
-	.fw_name = "apple/avd-fw-v2.bin",
+	.fw_name = "apple/avd-fw-v2-t0.bin",
 	.revision = 3,
 	.vp_slot_offset = 0x4004,
 	.submit_offset = 0x4014,
+};
+
+/* i dont think this has the unk buffer */
+static const struct avd_variant avd_t6000_variant = {
+	.vp_slots = {
+		[AVD_CODEC_HEVC] = 4,
+		[AVD_CODEC_H264] = 4,
+		[AVD_CODEC_VP9] = 1,
+	},
+	.fifo_slots = 15,
+	.capabilities = AVD_CAPABILITY_HEVC |
+			AVD_CAPABILITY_H264 |
+			AVD_CAPABILITY_VP9,
+	.configure_stream = t8112_configure_stream,
+	.fw_name = "apple/avd-fw-v3-t0.bin",
+	.revision = 4,
+	.vp_slot_offset = 0xc,
+	.submit_offset = 0x30,
 };
 
 static const struct avd_variant avd_t8112_variant = {
@@ -420,15 +437,73 @@ static const struct avd_variant avd_t8112_variant = {
 		[AVD_CODEC_H264] = 4,
 		[AVD_CODEC_VP9] = 1,
 	},
-	.fifo_slots = 15, /* maybe? at least for t6020 */
+	.fifo_slots = 15,
 	.capabilities = AVD_CAPABILITY_HEVC |
 			AVD_CAPABILITY_H264 |
 			AVD_CAPABILITY_VP9,
 	.configure_stream = t8112_configure_stream,
-	.fw_name = "apple/avd-fw-v3.bin",
+	.fw_name = "apple/avd-fw-v3-t1.bin",
 	.revision = 4,
 	.vp_slot_offset = 0xc,
 	.submit_offset = 0x30,
+};
+
+static const struct avd_variant avd_t8122_variant = {
+	.vp_slots = {
+		[AVD_CODEC_HEVC] = 4,
+		[AVD_CODEC_H264] = 4,
+		[AVD_CODEC_VP9] = 1,
+		[AVD_CODEC_AV1] = 2,
+	},
+	.fifo_slots = 15,
+	.configure_stream = t8122_configure_stream,
+	.capabilities = AVD_CAPABILITY_HEVC |
+			AVD_CAPABILITY_H264 |
+			AVD_CAPABILITY_VP9 |
+			AVD_CODEC_AV1,
+	.fw_name = "apple/avd-fw-v4-t0.bin",
+	.revision = 4,
+	.vp_slot_offset = 0xc,
+	.submit_offset = 0x40,
+};
+
+static const struct avd_variant avd_t8132_variant = {
+	/* This is filled in using the tunables, what vp/pp to use? */
+	.vp_slots = {
+		[AVD_CODEC_HEVC] = 2,
+		[AVD_CODEC_H264] = 1,
+		[AVD_CODEC_VP9] = 1,
+		[AVD_CODEC_AV1] = 1,
+	},
+	.fifo_slots = 7,
+	.configure_stream = t8122_configure_stream,
+	.capabilities = AVD_CAPABILITY_HEVC |
+			AVD_CAPABILITY_H264 |
+			AVD_CAPABILITY_VP9 |
+			AVD_CODEC_AV1,
+	.fw_name = "apple/avd-fw-v5-t0.bin",
+	.revision = 4,
+	.vp_slot_offset = 0xc,
+	.submit_offset = 0x40,
+};
+
+static const struct avd_variant avd_t6040_variant = {
+	.vp_slots = {
+		[AVD_CODEC_HEVC] = 4,
+		[AVD_CODEC_H264] = 4,
+		[AVD_CODEC_VP9] = 1,
+		[AVD_CODEC_AV1] = 3,
+	},
+	.fifo_slots = 15,
+	.configure_stream = t8122_configure_stream,
+	.capabilities = AVD_CAPABILITY_HEVC |
+			AVD_CAPABILITY_H264 |
+			AVD_CAPABILITY_VP9 |
+			AVD_CODEC_AV1,
+	.fw_name = "apple/avd-fw-v5-t1.bin",
+	.revision = 4,
+	.vp_slot_offset = 0xc,
+	.submit_offset = 0x40,
 };
 
 /* can also be derived from a version register */
@@ -438,8 +513,24 @@ static const struct of_device_id avd_of_match[] = {
 		.data = &avd_t8103_variant
 	},
 	{
+		.compatible = "apple,t6000-avd",
+		.data = &avd_t6000_variant
+	},
+	{
 		.compatible = "apple,t8112-avd",
 		.data = &avd_t8112_variant
+	},
+	{
+		.compatible = "apple,t8122-avd",
+		.data = &avd_t8122_variant
+	},
+	{
+		.compatible = "apple,t8132-avd",
+		.data = &avd_t8132_variant
+	},
+	{
+		.compatible = "apple,t6040-avd",
+		.data = &avd_t6040_variant
 	},
 	{},
 };
