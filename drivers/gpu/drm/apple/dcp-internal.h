@@ -138,6 +138,8 @@ struct apple_dcp {
 	 * sense to keep some of the members in apple_dcp.                    *
 	 **********************************************************************/
 
+	u32 iomfb_surfaces[DCP_MAX_PLANES];
+
 	/* clock rate request by dcp in */
 	struct clk *clk;
 
