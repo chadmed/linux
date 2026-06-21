@@ -129,7 +129,6 @@
 		ti,imon-slot-no = <0>;
 		ti,vmon-slot-no = <2>;
 		ti,pdm-slot-no = <4>;
-		ti,sdout-pull-down;
 	};
 };
 
@@ -171,7 +170,6 @@
 		ti,imon-slot-no = <4>;
 		ti,vmon-slot-no = <6>;
 		ti,pdm-slot-no = <8>;
-		ti,sdout-pull-down;
 	};
 };
 
@@ -277,6 +275,8 @@
 
 		dai-link@0 {
 			link-name = "Speakers";
+			dai-tdm-idle-mode-0 = "pulldown";
+			dai-tdm-idle-mode-2 = "pulldown";
 
 			cpu {
 				sound-dai = <&mca 0>, <&mca 1>;
