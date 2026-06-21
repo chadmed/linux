@@ -239,9 +239,9 @@ static void stream_hdr(struct avd_ctx *ctx, struct avd_h264_run *run)
 	push_rvra(avd, ctx, run->addresses.rvra, ctx->rvra_offsets);
 
 	pusha(run->addresses.y, "hdr_210_y_addr_lsb8", 0);
-	push(ctx->decoded_fmt.fmt.pix_mp.plane_fmt[0].bytesperline, "hdr_218_width_align");
+	push(ctx->decoded_fmt.fmt.pix_mp.plane_fmt[0].bytesperline >> 4, "hdr_218_width_align");
 	pusha(run->addresses.uv,"hdr_214_uv_addr_lsb8", 0);
-	push(ctx->decoded_fmt.fmt.pix_mp.plane_fmt[0].bytesperline, "hdr_21c_width_align");
+	push(ctx->decoded_fmt.fmt.pix_mp.plane_fmt[0].bytesperline >> 4, "hdr_21c_width_align");
 
 	push(0x0, "cm3_mark_end_section");
 	push(((height - 1) << 16) | (width - 1), "hdr_54_height_width");
