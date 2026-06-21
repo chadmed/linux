@@ -490,7 +490,7 @@ static int macaudio_get_codec_idle_props(struct device_node *np,
 	 */
 	sys_codec = i + (be_index * ncodecs_per_cpu);
 
-	snprintf(propname, 32, "dai-tdm-slot-tx-idle-mode-%d", sys_codec);
+	snprintf(propname, 32, "dai-tdm-idle-mode-%d", sys_codec);
 	ret = of_property_match_string(np, propname, "zero");
 	if (!ret) {
 		idle->idle_mode = SND_SOC_DAI_TDM_IDLE_ZERO;
