@@ -86,6 +86,7 @@ struct macsmc_power {
 	bool has_ch0i; /* Force discharge (Older firmware) */
 	bool has_ch0c; /* Inhibit charge (Older firmware) */
 	bool has_chte; /* Inhibit charge (Modern firmware) */
+	bool bcf0_1byte; /* Battery critical key is 1 byte (Modern firmware) */
 
 	u8 num_cells;
 	int nominal_voltage_mv;
@@ -94,7 +95,106 @@ struct macsmc_power {
 	struct work_struct critical_work;
 	bool emergency_shutdown_triggered;
 	bool orderly_shutdown_triggered;
+
+	struct delayed_work dbg_log_work;
 };
+
+static int macsmc_log_power_set(const char *val, const struct kernel_param *kp);
+
+static const struct kernel_param_ops macsmc_log_power_ops = {
+        .set = macsmc_log_power_set,
+        .get = param_get_bool,
+};
+
+static bool log_power = false;
+module_param_cb(log_power, &macsmc_log_power_ops, &log_power, 0644);
+MODULE_PARM_DESC(log_power, "Periodically log power consumption for debugging");
+
+#define POWER_LOG_INTERVAL (HZ)
+
+static struct macsmc_power *g_power;
+
+#define FLT_EXP_BIAS	127
+#define FLT_EXP_MASK	GENMASK(30, 23)
+#define FLT_MANT_BIAS	23
+#define FLT_MANT_MASK	GENMASK(22, 0)
+#define FLT_SIGN_MASK	BIT(31)
+/*
+ * Many sensors report their data as IEEE-754 floats. No other SMC function uses
+ * them.
+ */
+static int apple_smc_read_f32_scaled(struct apple_smc *smc, smc_key key,
+					int *p, int scale)
+{
+	u32 fval;
+	u64 val;
+	int ret, exp;
+
+	BUILD_BUG_ON(scale <= 0);
+
+	ret = apple_smc_read_u32(smc, key, &fval);
+	if (ret < 0)
+		return ret;
+
+	val = ((u64)((fval & FLT_MANT_MASK) | BIT(23)));
+	exp = ((fval >> 23) & 0xff) - FLT_EXP_BIAS - FLT_MANT_BIAS;
+	val *= scale;
+
+	if (exp > 63)
+		val = U64_MAX;
+	else if (exp < -63)
+		val = 0;
+	else if (exp < 0)
+		val >>= -exp;
+	else if (exp != 0 && (val & ~((1UL << (64 - exp)) - 1))) /* overflow */
+		val = U64_MAX;
+	else
+		val <<= exp;
+
+	if (fval & FLT_SIGN_MASK) {
+		if (val > (-(s64)INT_MIN))
+			*p = INT_MIN;
+		else
+			*p = -val;
+	} else {
+		if (val > INT_MAX)
+			*p = INT_MAX;
+		else
+			*p = val;
+	}
+
+	return 0;
+}
+
+static void macsmc_do_dbg(struct macsmc_power *power)
+{
+	int p_in = 0, p_sys = 0, p_3v8 = 0, p_mpmu = 0, p_spmu = 0, p_clvr = 0, p_cpu = 0;
+	s32 p_bat = 0;
+	s16 t_full = 0, t_empty = 0;
+	u8 charge = 0;
+
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PDTR), &p_in, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PSTR), &p_sys, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PMVR), &p_3v8, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PHPC), &p_cpu, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PSVR), &p_clvr, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PPMC), &p_mpmu, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PPSC), &p_spmu, 1000);
+	apple_smc_read_s32(power->smc, SMC_KEY(B0AP), &p_bat);
+	apple_smc_read_s16(power->smc, SMC_KEY(B0TE), &t_empty);
+	apple_smc_read_s16(power->smc, SMC_KEY(B0TF), &t_full);
+	apple_smc_read_u8(power->smc, SMC_KEY(BUIC), &charge);
+
+#define FD3(x) ((x) / 1000), abs((x) % 1000)
+	dev_info(power->dev,
+		 "In %2d.%03dW Sys %2d.%03dW 3V8 %2d.%03dW MPMU %2d.%03dW SPMU %2d.%03dW "
+		 "CLVR %2d.%03dW CPU %2d.%03dW Batt %2d.%03dW %d%% T%s %dm\n",
+		 FD3(p_in), FD3(p_sys), FD3(p_3v8), FD3(p_mpmu), FD3(p_spmu), FD3(p_clvr),
+		 FD3(p_cpu), FD3(p_bat), charge,
+		 t_full >= 0 ? "full" : "empty",
+		 t_full >= 0 ? t_full : t_empty);
+#undef FD3
+}
 
 static int macsmc_battery_get_status(struct macsmc_power *power)
 {
@@ -273,6 +373,19 @@ static int macsmc_battery_get_date(const char *s, int *out)
 	return 0;
 }
 
+static int macsmc_battery_read_bcf0(struct macsmc_power *power, u32 *val)
+{
+	u8 tval = 0;
+	int ret;
+
+	if (!power->bcf0_1byte)
+		return apple_smc_read_u32(power->smc, SMC_KEY(BCF0), val);
+
+	ret = apple_smc_read_u8(power->smc, SMC_KEY(BCF0), &tval);
+	*val = tval;
+	return ret;
+}
+
 static int macsmc_battery_get_capacity_level(struct macsmc_power *power)
 {
 	bool flag;
@@ -280,7 +393,7 @@ static int macsmc_battery_get_capacity_level(struct macsmc_power *power)
 	int ret;
 
 	/* Check for emergency shutdown condition */
-	if (apple_smc_read_u32(power->smc, SMC_KEY(BCF0), &val) >= 0 && val)
+	if (macsmc_battery_read_bcf0(power, &val) >= 0 && val)
 		return POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
 
 	/* Check AC status for whether we could boot in this state */
@@ -529,6 +642,30 @@ static const struct power_supply_desc macsmc_ac_desc_template = {
 	.get_property		= macsmc_ac_get_property,
 };
 
+static int macsmc_log_power_set(const char *val, const struct kernel_param *kp)
+{
+	int ret = param_set_bool(val, kp);
+
+	if (ret < 0)
+		return ret;
+
+	if (log_power && g_power)
+		schedule_delayed_work(&g_power->dbg_log_work, 0);
+
+	return 0;
+}
+
+static void macsmc_dbg_work(struct work_struct *wrk)
+{
+	struct macsmc_power *power = container_of(to_delayed_work(wrk),
+						  struct macsmc_power, dbg_log_work);
+
+	macsmc_do_dbg(power);
+
+	if (log_power)
+		schedule_delayed_work(&power->dbg_log_work, POWER_LOG_INTERVAL);
+}
+
 static void macsmc_power_critical_work(struct work_struct *wrk)
 {
 	struct macsmc_power *power = container_of(wrk, struct macsmc_power, critical_work);
@@ -577,7 +714,7 @@ static void macsmc_power_critical_work(struct work_struct *wrk)
 	 * Check if SMC flagged the battery as empty.
 	 * We trigger a graceful shutdown to let the OS save data.
 	 */
-	if (apple_smc_read_u32(power->smc, SMC_KEY(BCF0), &bcf0) == 0 && bcf0 != 0) {
+	if (macsmc_battery_read_bcf0(power, &bcf0) == 0 && bcf0 != 0) {
 		power->orderly_shutdown_triggered = true;
 		dev_crit(power->dev, "Battery critical (empty flag set). Triggering orderly shutdown.\n");
 		orderly_poweroff(true);
@@ -606,6 +743,11 @@ static int macsmc_power_event(struct notifier_block *nb, unsigned long event, vo
 		if (power->batt)
 			schedule_work(&power->critical_work);
 		return NOTIFY_OK;
+	} else if ((event & 0xffff0000) == 0x72010000) {
+		/* Button event handled by macsmc-hid, but let's do a debug print */
+		if (log_power)
+			macsmc_do_dbg(power);
+		return NOTIFY_OK;
 	}
 
 	return NOTIFY_DONE;
@@ -616,6 +758,7 @@ static int macsmc_power_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct apple_smc *smc = dev_get_drvdata(pdev->dev.parent);
 	struct power_supply_config psy_cfg = {};
+	struct apple_smc_key_info info;
 	struct macsmc_power *power;
 	bool has_battery = false;
 	bool has_ac_adapter = false;
@@ -714,6 +857,20 @@ static int macsmc_power_probe(struct platform_device *pdev)
 		if (apple_smc_key_exists(smc, SMC_KEY(CH0I)))
 			power->has_ch0i = true;
 
+		ret = apple_smc_get_key_info(power->smc, SMC_KEY(BCF0), &info);
+		if (ret) {
+			dev_err(&pdev->dev, "Failed to determine BCF0 key size\n");
+			return ret;
+		}
+		if (info.size == 1)
+			power->bcf0_1byte = true;
+		else if (info.size == 4)
+			power->bcf0_1byte = false;
+		else {
+			dev_err(&pdev->dev, "Unexpected BCF0 key size %d\n", info.size);
+			return -EIO;
+		}
+
 		/* Reset "Optimised Battery Charging" flags to default state */
 		if (power->has_chte)
 			apple_smc_write_u32(smc, SMC_KEY(CHTE), 0);
@@ -766,7 +923,7 @@ static int macsmc_power_probe(struct platform_device *pdev)
 		power->nominal_voltage_mv = MACSMC_NOMINAL_CELL_VOLTAGE_MV * power->num_cells;
 
 		/* Enable critical shutdown notifications by reading status once */
-		apple_smc_read_u32(power->smc, SMC_KEY(BCF0), &val32);
+		macsmc_battery_read_bcf0(power, &val32);
 
 		psy_cfg.drv_data = power;
 		power->batt = devm_power_supply_register(dev, &power->batt_desc, &psy_cfg);
@@ -823,12 +980,25 @@ static int macsmc_power_probe(struct platform_device *pdev)
 	power->nb.notifier_call = macsmc_power_event;
 	blocking_notifier_chain_register(&smc->event_handlers, &power->nb);
 
+	INIT_WORK(&power->critical_work, macsmc_power_critical_work);
+	INIT_DELAYED_WORK(&power->dbg_log_work, macsmc_dbg_work);
+
+	g_power = power;
+
+	if (log_power)
+		schedule_delayed_work(&power->dbg_log_work, 0);
+
 	return 0;
 }
 
 static void macsmc_power_remove(struct platform_device *pdev)
 {
 	struct macsmc_power *power = dev_get_drvdata(&pdev->dev);
+
+	cancel_work(&power->critical_work);
+	cancel_delayed_work(&power->dbg_log_work);
+
+	g_power = NULL;
 
 	blocking_notifier_chain_unregister(&power->smc->event_handlers, &power->nb);
 }
