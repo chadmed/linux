@@ -141,9 +141,6 @@ struct mca_cluster {
 	bool clocks_in_use[SNDRV_PCM_STREAM_LAST + 1];
 	struct device_link *pd_link;
 
-	/* In case of clock consumer FE */
-	int syncgen_in_use;
-
 	unsigned int bclk_ratio;
 
 	/* Masks etc. picked up via the set_tdm_slot method */
@@ -390,24 +387,14 @@ static int mca_fe_prepare(struct snd_pcm_substream *substream,
 	if (cl->clk_provider)
 		return 0;
 
-	if (!cl->syncgen_in_use) {
+	if (!mca_fe_clocks_in_use(cl)) {
 		int port = mca_fe_get_port(substream);
-
-		cl->pd_link = device_link_add(mca->dev, cl->pd_dev,
-					      DL_FLAG_STATELESS | DL_FLAG_PM_RUNTIME |
-						DL_FLAG_RPM_ACTIVE);
-		if (!cl->pd_link) {
-			dev_err(mca->dev,
-				"cluster %d: unable to prop-up power domain\n", cl->no);
-			return -EINVAL;
-		}
-
 		writel_relaxed(port + 6 + 1,
 			       cl->base + REG_SYNCGEN_MCLK_SEL);
 		mca_modify(cl, REG_SYNCGEN_STATUS, SYNCGEN_STATUS_EN,
 			   SYNCGEN_STATUS_EN);
 	}
-	cl->syncgen_in_use |= 1 << substream->stream;
+	cl->clocks_in_use[substream->stream] = true;
 
 	return 0;
 }
@@ -420,13 +407,11 @@ static int mca_fe_hw_free(struct snd_pcm_substream *substream,
 	if (cl->clk_provider)
 		return 0;
 
-	cl->syncgen_in_use &= ~(1 << substream->stream);
-	if (cl->syncgen_in_use)
+	cl->clocks_in_use[substream->stream] = false;
+	if (mca_fe_clocks_in_use(cl))
 		return 0;
 
 	mca_modify(cl, REG_SYNCGEN_STATUS, SYNCGEN_STATUS_EN, 0);
-	if (cl->pd_link)
-		device_link_del(cl->pd_link);
 
 	return 0;
 }
