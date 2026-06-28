@@ -33,6 +33,39 @@
 	brcm,board-type = "apple,jura";
 };
 
+&speaker_sdz {
+	gpios = <&pinctrl_ap 171 GPIO_ACTIVE_HIGH>;
+};
+
+&speaker_left_tweet {
+	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
+};
+
+&speaker_left_woof1 {
+	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
+};
+
+&speaker_left_woof2 {
+	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
+};
+
+&speaker_right_tweet {
+	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
+};
+
+&speaker_right_woof1 {
+	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
+};
+
+&speaker_right_woof2 {
+	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
+};
+
+&jack_codec {
+	reset-gpios = <&pinctrl_nub 21 GPIO_ACTIVE_HIGH>;
+	interrupts-extended = <&pinctrl_ap 100 IRQ_TYPE_LEVEL_LOW>;
+};
+
 &sound {
 	compatible = "apple,j516-macaudio", "apple,j316-macaudio", "apple,macaudio";
 	model = "MacBook Pro J516";
