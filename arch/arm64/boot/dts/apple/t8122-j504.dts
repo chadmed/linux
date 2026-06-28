@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: GPL-2.0+ OR MIT
+/*
+ * Apple MacBook Pro (14-inch, M3, 2023)
+ *
+ * target-type: J504
+ *
+ * Copyright The Asahi Linux Contributors
+ */
+
+/dts-v1/;
+
+#include "t8122.dtsi"
+#include "t8122-usbpd-i2c.dtsi"
+#include "t8122-jxxx.dtsi"
+#include <dt-bindings/leds/common.h>
+
+/ {
+	compatible = "apple,j504", "apple,t8122", "apple,arm-platform";
+	model = "Apple MacBook Pro (14-inch, M3, 2023)";
+
+	led-controller {
+		compatible = "pwm-leds";
+		led-0 {
+			pwms = <&fpwm1 0 40000>;
+			label = "kbd_backlight";
+			function = LED_FUNCTION_KBD_BACKLIGHT;
+			color = <LED_COLOR_ID_WHITE>;
+			max-brightness = <255>;
+			default-state = "keep";
+		};
+	};
+};
+
+&wifi0 {
+	brcm,board-type = "apple,tresco";
+};
+
+&bluetooth0 {
+	brcm,board-type = "apple,tresco";
+};
+
+&port01 {
+	/* SD card reader */
+	bus-range = <2 2>;
+	status = "okay";
+
+	sdhci0: mmc@0,0 {
+		compatible = "pci17a0,9755";
+		reg = <0x20000 0x0 0x0 0x0 0x0>;
+		cd-inverted;
+		wp-inverted;
+	};
+};
+
+&pcie1_dart {
+	status = "okay";
+};
+
+
+&fpwm1 {
+	status = "okay";
+};
+
+#include "hwmon-fan-dual.dtsi"
+#include "hwmon-laptop.dtsi"
