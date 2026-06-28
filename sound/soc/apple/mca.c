@@ -261,18 +261,22 @@ static int mca_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 	return 0;
 }
 
-static int mca_fe_get_portmask(struct snd_pcm_substream *substream)
+static int mca_fe_get_port(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *fe = snd_soc_substream_to_rtd(substream);
+	struct snd_soc_pcm_runtime *be;
 	struct snd_soc_dpcm *dpcm;
-	int mask = 0;
 
+	be = NULL;
 	for_each_dpcm_be(fe, substream->stream, dpcm) {
-		int no = mca_dai_to_cluster(snd_soc_rtd_to_cpu(dpcm->be, 0))->no;
-		mask |= 1 << no;
+		be = dpcm->be;
+		break;
 	}
 
-	return mask;
+	if (!be)
+		return -EINVAL;
+
+	return mca_dai_to_cluster(snd_soc_rtd_to_cpu(be, 0))->no;
 }
 
 static int mca_fe_enable_clocks(struct mca_cluster *cl)
@@ -387,7 +391,7 @@ static int mca_fe_prepare(struct snd_pcm_substream *substream,
 		return 0;
 
 	if (!cl->syncgen_in_use) {
-		int port = ffs(mca_fe_get_portmask(substream)) - 1;
+		int port = mca_fe_get_port(substream);
 
 		cl->pd_link = device_link_add(mca->dev, cl->pd_dev,
 					      DL_FLAG_STATELESS | DL_FLAG_PM_RUNTIME |
@@ -437,7 +441,7 @@ static unsigned int mca_crop_mask(unsigned int mask, int nchans)
 
 static int mca_configure_serdes(struct mca_cluster *cl, int serdes_unit,
 				unsigned int mask, int slots, int nchans,
-				int slot_width, bool is_tx, int portmask)
+				int slot_width, bool is_tx, int port)
 {
 	__iomem void *serdes_base = cl->base + serdes_unit;
 	u32 serdes_conf, serdes_conf_mask;
@@ -496,7 +500,7 @@ static int mca_configure_serdes(struct mca_cluster *cl, int serdes_unit,
 			       serdes_base + REG_RX_SERDES_SLOTMASK);
 		writel_relaxed(~((u32)mca_crop_mask(mask, nchans)),
 			       serdes_base + REG_RX_SERDES_SLOTMASK + 0x4);
-		writel_relaxed(portmask,
+		writel_relaxed(1 << port,
 			       serdes_base + REG_RX_SERDES_PORT);
 	}
 
@@ -633,7 +637,7 @@ static int mca_fe_hw_params(struct snd_pcm_substream *substream,
 	unsigned long bclk_ratio;
 	unsigned int tdm_slots, tdm_slot_width, tdm_mask;
 	u32 regval, pad;
-	int ret, portmask, nchans_ceiled;
+	int ret, port, nchans_ceiled;
 
 	if (!cl->tdm_slot_width) {
 		/*
@@ -682,13 +686,13 @@ static int mca_fe_hw_params(struct snd_pcm_substream *substream,
 		tdm_mask = (1 << tdm_slots) - 1;
 	}
 
-	portmask = mca_fe_get_portmask(substream);
-	if (!portmask)
-		return -EINVAL;
+	port = mca_fe_get_port(substream);
+	if (port < 0)
+		return port;
 
 	ret = mca_configure_serdes(cl, is_tx ? CLUSTER_TX_OFF : CLUSTER_RX_OFF,
 				   tdm_mask, tdm_slots, params_channels(params),
-				   tdm_slot_width, is_tx, portmask);
+				   tdm_slot_width, is_tx, port);
 	if (ret)
 		return ret;
 
