@@ -30,17 +30,6 @@ struct dcp_av_audio_cmds {
 	u32 get_product_attrs;
 };
 
-static const struct dcp_av_audio_cmds dcp_av_audio_cmds_v12_3 = {
-	.open = 6,
-	.close = 7,
-	.prepare = 8,
-	.start_link = 9,
-	.stop_link = 12,
-	.unprepare = 13,
-	.get_elements = 18,
-	.get_product_attrs = 20,
-};
-
 static const struct dcp_av_audio_cmds dcp_av_audio_cmds_v13_5 = {
 	.open = 4,
 	.close = 5,
@@ -389,9 +378,6 @@ int avep_init(struct apple_dcp *dcp)
 	mutex_init(&audiosrv_data->plug_lock);
 
 	switch (dcp->fw_compat) {
-	case DCP_FIRMWARE_V_12_3:
-		audiosrv_data->cmds = dcp_av_audio_cmds_v12_3;
-		break;
 	case DCP_FIRMWARE_V_13_5:
 		audiosrv_data->cmds = dcp_av_audio_cmds_v13_5;
 		break;

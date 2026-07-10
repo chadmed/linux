@@ -430,9 +430,6 @@ int dcp_crtc_atomic_modeset(struct drm_crtc *crtc,
 		return 0;
 
 	switch (dcp->fw_compat) {
-	case DCP_FIRMWARE_V_12_3:
-		ret = iomfb_modeset_v12_3(dcp, crtc_state);
-		break;
 	case DCP_FIRMWARE_V_13_5:
 		ret = iomfb_modeset_v13_3(dcp, crtc_state);
 		break;
@@ -479,9 +476,6 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	}
 
 	switch (dcp->fw_compat) {
-	case DCP_FIRMWARE_V_12_3:
-		iomfb_flush_v12_3(dcp, crtc, state);
-		break;
 	case DCP_FIRMWARE_V_13_5:
 		iomfb_flush_v13_3(dcp, crtc, state);
 		break;
@@ -494,9 +488,6 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 static void iomfb_start(struct apple_dcp *dcp)
 {
 	switch (dcp->fw_compat) {
-	case DCP_FIRMWARE_V_12_3:
-		iomfb_start_v12_3(dcp);
-		break;
 	case DCP_FIRMWARE_V_13_5:
 		iomfb_start_v13_3(dcp);
 		break;
@@ -545,9 +536,6 @@ void iomfb_shutdown(struct apple_dcp *dcp)
 	dcp->valid_mode = false;
 
 	switch (dcp->fw_compat) {
-	case DCP_FIRMWARE_V_12_3:
-		iomfb_shutdown_v12_3(dcp);
-		break;
 	case DCP_FIRMWARE_V_13_5:
 		iomfb_shutdown_v13_3(dcp);
 		break;

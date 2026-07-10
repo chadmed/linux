@@ -34,7 +34,6 @@ void dcp_poweron(struct platform_device *pdev);
 int dcp_set_crc(struct drm_crtc *crtc, bool enabled);
 int dcp_crtc_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state);
 int dcp_get_connector_type(struct platform_device *pdev);
-bool dcp_fw_compat_is_12_x(struct platform_device *pdev);
 unsigned long* dcp_get_iomfb_surfaces(struct platform_device *pdev);
 void dcp_link(struct platform_device *pdev, struct apple_crtc *apple,
 	      struct apple_connector *connector);
