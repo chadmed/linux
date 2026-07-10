@@ -485,14 +485,6 @@ void dcp_link(struct platform_device *pdev, struct apple_crtc *crtc,
 	dcp->connector = connector;
 }
 
-
-bool dcp_fw_compat_is_12_x(struct platform_device *pdev)
-{
-	struct apple_dcp *dcp = platform_get_drvdata(pdev);
-
-	return dcp->fw_compat == DCP_FIRMWARE_V_12_3;
-}
-
 unsigned long* dcp_get_iomfb_surfaces(struct platform_device *pdev)
 {
 	struct apple_dcp *dcp = platform_get_drvdata(pdev);
@@ -575,9 +567,6 @@ int dcp_start(struct platform_device *pdev)
 static void _dcp_poweroff(struct apple_dcp *dcp)
 {
 	switch (dcp->fw_compat) {
-	case DCP_FIRMWARE_V_12_3:
-		iomfb_poweroff_v12_3(dcp);
-		break;
 	case DCP_FIRMWARE_V_13_5:
 		iomfb_poweroff_v13_3(dcp);
 		break;
@@ -634,9 +623,6 @@ int dcp_wait_ready(struct platform_device *pdev, u64 timeout)
 static void __maybe_unused dcp_sleep(struct apple_dcp *dcp)
 {
 	switch (dcp->fw_compat) {
-	case DCP_FIRMWARE_V_12_3:
-		iomfb_sleep_v12_3(dcp);
-		break;
 	case DCP_FIRMWARE_V_13_5:
 		iomfb_sleep_v13_3(dcp);
 		break;
@@ -659,9 +645,6 @@ void dcp_poweron(struct platform_device *pdev)
 	}
 
 	switch (dcp->fw_compat) {
-	case DCP_FIRMWARE_V_12_3:
-		iomfb_poweron_v12_3(dcp);
-		break;
 	case DCP_FIRMWARE_V_13_5:
 		iomfb_poweron_v13_3(dcp);
 		break;
@@ -950,8 +933,6 @@ static enum dcp_firmware_version dcp_check_firmware_version(struct device *dev)
 		return DCP_FIRMWARE_UNKNOWN;
 	}
 
-	if (strncmp(compat_str, "12.3.0", sizeof(compat_str)) == 0)
-		return DCP_FIRMWARE_V_12_3;
 	/*
 	 * m1n1 reports firmware version 13.5 as compatible with 13.3. This is
 	 * only true for the iomfb endpoint. The interface for the dptx-port

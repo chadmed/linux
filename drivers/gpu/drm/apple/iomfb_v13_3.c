@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only OR MIT
 /* Copyright The Asahi Linux Contributors */
 
-#include "iomfb_v12_3.h"
 #include "iomfb_v13_3.h"
 #include "version_utils.h"
 

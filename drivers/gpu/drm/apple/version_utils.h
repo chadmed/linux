@@ -14,7 +14,6 @@
 
 enum dcp_firmware_version {
 	DCP_FIRMWARE_UNKNOWN,
-	DCP_FIRMWARE_V_12_3,
 	DCP_FIRMWARE_V_13_5,
 };
 
