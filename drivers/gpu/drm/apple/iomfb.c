@@ -433,6 +433,9 @@ int dcp_crtc_atomic_modeset(struct drm_crtc *crtc,
 	case DCP_FIRMWARE_V_13_5:
 		ret = iomfb_modeset_v13_3(dcp, crtc_state);
 		break;
+	case DCP_FIRMWARE_V_14_7:
+		ret = iomfb_modeset_v14_7_0(dcp, crtc_state);
+		break;
 	default:
 		WARN_ONCE(true, "Unexpected firmware version: %u\n",
 			  dcp->fw_compat);
@@ -479,6 +482,9 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	case DCP_FIRMWARE_V_13_5:
 		iomfb_flush_v13_3(dcp, crtc, state);
 		break;
+	case DCP_FIRMWARE_V_14_7:
+		iomfb_flush_v14_7_0(dcp, crtc, state);
+		break;
 	default:
 		WARN_ONCE(true, "Unexpected firmware version: %u\n", dcp->fw_compat);
 		break;
@@ -490,6 +496,9 @@ static void iomfb_start(struct apple_dcp *dcp)
 	switch (dcp->fw_compat) {
 	case DCP_FIRMWARE_V_13_5:
 		iomfb_start_v13_3(dcp);
+		break;
+	case DCP_FIRMWARE_V_14_7:
+		iomfb_start_v14_7_0(dcp);
 		break;
 	default:
 		WARN_ONCE(true, "Unexpected firmware version: %u\n", dcp->fw_compat);
@@ -538,6 +547,9 @@ void iomfb_shutdown(struct apple_dcp *dcp)
 	switch (dcp->fw_compat) {
 	case DCP_FIRMWARE_V_13_5:
 		iomfb_shutdown_v13_3(dcp);
+		break;
+	case DCP_FIRMWARE_V_14_7:
+		iomfb_shutdown_v14_7_0(dcp);
 		break;
 	default:
 		WARN_ONCE(true, "Unexpected firmware version: %u\n", dcp->fw_compat);
