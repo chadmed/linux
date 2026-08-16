@@ -60,22 +60,11 @@
 	apple,machine-kind = "MacBook Air";
 };
 
-/* Virtual regulator representing the shared shutdown GPIO */
-/ {
-	speaker_sdz: fixed-regulator-sn012776-sdz {
-		compatible = "regulator-fixed";
-		regulator-name = "sn012776-sdz";
-		startup-delay-us = <5000>;
-		gpios = <&pinctrl_ap 13 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-	};
-};
-
 &i2c1 {
 	speaker_left_woof: codec@38 {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x38>;
-		SDZ-supply = <&speaker_sdz>;
+		shutdown-gpios = <&pinctrl_ap 13 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Woofer";
 		interrupts-extended = <&pinctrl_ap 12 IRQ_TYPE_LEVEL_LOW>;
@@ -86,7 +75,7 @@
 	speaker_left_tweet: codec@39 {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x39>;
-		SDZ-supply = <&speaker_sdz>;
+		shutdown-gpios = <&pinctrl_ap 13 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Tweeter";
 		interrupts-extended = <&pinctrl_ap 12 IRQ_TYPE_LEVEL_LOW>;
@@ -99,7 +88,7 @@
 	speaker_right_woof: codec@3b {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x3b>;
-		SDZ-supply = <&speaker_sdz>;
+		shutdown-gpios = <&pinctrl_ap 13 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Woofer";
 		interrupts-extended = <&pinctrl_ap 12 IRQ_TYPE_LEVEL_LOW>;
@@ -110,7 +99,7 @@
 	speaker_right_tweet: codec@3c {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x3c>;
-		SDZ-supply = <&speaker_sdz>;
+		shutdown-gpios = <&pinctrl_ap 13 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Tweeter";
 		interrupts-extended = <&pinctrl_ap 12 IRQ_TYPE_LEVEL_LOW>;
