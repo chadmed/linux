@@ -33,31 +33,33 @@
 	brcm,board-type = "apple,texa";
 };
 
-&speaker_sdz {
-	gpios = <&pinctrl_ap 171 GPIO_ACTIVE_HIGH>;
-};
-
 &speaker_left_tweet {
+	shutdown-gpios = <&pinctrl_ap 171 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_left_woof1 {
+	shutdown-gpios = <&pinctrl_ap 171 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_left_woof2 {
+	shutdown-gpios = <&pinctrl_ap 171 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_right_tweet {
+	shutdown-gpios = <&pinctrl_ap 171 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_right_woof1 {
+	shutdown-gpios = <&pinctrl_ap 171 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_right_woof2 {
+	shutdown-gpios = <&pinctrl_ap 171 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 29 IRQ_TYPE_LEVEL_LOW>;
 };
 
