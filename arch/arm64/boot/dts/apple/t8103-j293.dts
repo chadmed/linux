@@ -95,22 +95,11 @@
 	};
 };
 
-/* Virtual regulator representing the shared shutdown GPIO */
-/ {
-	speaker_sdz: fixed-regulator-tas5770-sdz {
-		compatible = "regulator-fixed";
-		regulator-name = "tas5770-sdz";
-		startup-delay-us = <5000>;
-		gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-	};
-};
-
 &i2c1 {
 	speaker_left_rear: codec@31 {
 		compatible = "ti,tas5770l", "ti,tas2770";
 		reg = <0x31>;
-		SDZ-supply = <&speaker_sdz>;
+		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Rear";
 		interrupts-extended = <&pinctrl_ap 182 IRQ_TYPE_LEVEL_LOW>;
@@ -122,7 +111,7 @@
 	speaker_left_front: codec@32 {
 		compatible = "ti,tas5770l", "ti,tas2770";
 		reg = <0x32>;
-		SDZ-supply = <&speaker_sdz>;
+		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Front";
 		interrupts-extended = <&pinctrl_ap 182 IRQ_TYPE_LEVEL_LOW>;
@@ -151,7 +140,7 @@
 	speaker_right_rear: codec@34 {
 		compatible = "ti,tas5770l", "ti,tas2770";
 		reg = <0x34>;
-		SDZ-supply = <&speaker_sdz>;
+		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Rear";
 		interrupts-extended = <&pinctrl_ap 182 IRQ_TYPE_LEVEL_LOW>;
@@ -163,7 +152,7 @@
 	speaker_right_front: codec@35 {
 		compatible = "ti,tas5770l", "ti,tas2770";
 		reg = <0x35>;
-		SDZ-supply = <&speaker_sdz>;
+		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Front";
 		interrupts-extended = <&pinctrl_ap 182 IRQ_TYPE_LEVEL_LOW>;
