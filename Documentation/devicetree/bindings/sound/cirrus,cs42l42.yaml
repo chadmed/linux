@@ -9,6 +9,9 @@ title: Cirrus Logic CS42L42 audio CODEC
 maintainers:
   - patches@opensource.cirrus.com
 
+allOf:
+  - $ref: dai-common.yaml#
+
 description:
   The CS42L42 is a low-power audio codec designed for portable applications.
   It provides a high-dynamic range, stereo DAC for audio playback and a mono
@@ -25,6 +28,10 @@ properties:
     description:
       The I2C address of the CS42L42.
     maxItems: 1
+
+  '#sound-dai-cells': true
+
+  sound-name-prefix: true
 
   VP-supply:
     description:
