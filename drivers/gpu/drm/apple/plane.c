@@ -335,9 +335,10 @@ static void apple_plane_atomic_update(struct drm_plane *plane,
 	for (int i = 0; fb->format->num_planes && i < fb->format->num_planes; i++) {
 		u32 width = drm_format_info_plane_width(fb->format, fb->width, i);
 		u32 height = drm_format_info_plane_height(fb->format, fb->height, i);
+		u32 bw = drm_format_info_block_width(fb->format, i);
+		u32 bh = drm_format_info_block_height(fb->format, i);
 		u32 bpp;
-		u32 bw;
-		u32 bh;
+
 
 		surf->planes[i] = (struct dcp_plane_info){
 			.width = width,
@@ -348,7 +349,7 @@ static void apple_plane_atomic_update(struct drm_plane *plane,
 
 		switch (fb->modifier) {
 		case DRM_FORMAT_MOD_APPLE_INTERCHANGE:
-			bpp = drm_format_info_bpp(fmt, i);
+			bpp = fmt->char_per_block[i] * 8 / (bw * bh);
 			struct dcp_image_layout l = apple_get_interchange_layout(width, height,
 										 bpp, i, fmt->is_yuv);
 
@@ -373,8 +374,6 @@ static void apple_plane_atomic_update(struct drm_plane *plane,
 			};
 			break;
 		case DRM_FORMAT_MOD_LINEAR:
-			bh = drm_format_info_block_height(fb->format, i);
-			bw = drm_format_info_block_width(fb->format, i);
 			surf->planes[i].tile_w = bw;
 			surf->planes[i].tile_h = bh;
 			surf->planes[i].stride = fb->pitches[i];
