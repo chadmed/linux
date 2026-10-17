@@ -133,7 +133,7 @@ struct macaudio_snd_data {
 	bool speaker_volume_unlocked;
 	bool speaker_volume_was_locked;
 	struct snd_kcontrol *speaker_lock_kctl;
-	u64 bes_active;
+	u64 speakers_active;
 	bool speaker_lock_timeout_enabled;
 	ktime_t speaker_lock_timeout;
 	ktime_t speaker_lock_remain;
@@ -386,9 +386,9 @@ static void macaudio_vlimit_update_work(struct work_struct *wrk)
 	struct macaudio_snd_data *ma = container_of(wrk,
 						    struct macaudio_snd_data, lock_update_work);
 
-	guard(mutex)(&ma->be_link_mutex);
+	//guard(mutex)(&ma->be_link_mutex);
 
-	if (ma->bes_active)
+	if (ma->speakers_active)
 		macaudio_vlimit_enable_timeout(ma);
 	else
 		macaudio_vlimit_disable_timeout(ma);
@@ -948,19 +948,19 @@ static int macaudio_be_trigger(struct snd_pcm_substream *substream, int cmd)
 	struct macaudio_snd_data *ma = snd_soc_card_get_drvdata(rtd->card);
 	struct macaudio_link_props *props = &ma->link_props[rtd->dai_link->id];
 
-	guard(mutex)(&ma->be_link_mutex);
+	//guard(mutex)(&ma->be_link_mutex);
 
 	if (props->is_speakers && substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		switch (cmd) {
 		case SNDRV_PCM_TRIGGER_START:
 		case SNDRV_PCM_TRIGGER_RESUME:
 		case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-			ma->bes_active |= BIT(rtd->dai_link->id);
+			ma->speakers_active = true;
 			break;
 		case SNDRV_PCM_TRIGGER_SUSPEND:
 		case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		case SNDRV_PCM_TRIGGER_STOP:
-			ma->bes_active &= ~BIT(rtd->dai_link->id);
+			ma->speakers_active = false;
 			break;
 		default:
 			return -EINVAL;
