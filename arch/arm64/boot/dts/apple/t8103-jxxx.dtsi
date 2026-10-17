@@ -38,6 +38,27 @@
 		device_type = "memory";
 		reg = <0x8 0 0x2 0>; /* To be filled by loader */
 	};
+
+	/* CS42L83 VA, VCP, FILT */
+	pp1v8_awake: regulator {
+		compatible = "regulator-fixed";
+		status = "disabled";
+		regulator-name = "pp1v8-awake";
+	};
+
+	/* CS42L83 VL, VD */
+	pp1v25_awake_io: regulator {
+		compatible = "regulator-fixed";
+		status = "disabled";
+		regulator-name = "pp1v25-awake-io";
+	};
+
+	/* CS42L83 VP */
+	pp3v8_aon: regulator {
+		compatible = "regulator-fixed";
+		status = "disabled";
+		regulator-name = "pp3v8-aon";
+	};
 };
 
 &serial0 {
