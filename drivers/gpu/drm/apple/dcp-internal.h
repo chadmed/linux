@@ -187,6 +187,7 @@ struct apple_dcp {
 	bool use_timestamps;
 	bool hdr_enabled;
 	struct dcp_set_digital_out_mode_req mode;
+	u64 pixel_clock;
 
 	/* completion for active turning true */
 	struct completion start_done;

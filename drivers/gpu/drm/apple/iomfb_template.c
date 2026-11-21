@@ -461,7 +461,10 @@ dcpep_cb_map_physical(struct apple_dcp *dcp, struct dcp_map_physical_req *req)
 
 static u64 dcpep_cb_get_frequency(struct apple_dcp *dcp)
 {
-	return clk_get_rate(dcp->clk);
+	if (dcp->main_display)
+		return clk_get_rate(dcp->clk);
+	else
+		return dcp->pixel_clock;
 }
 
 static struct DCP_FW_NAME(dcp_map_reg_resp) dcpep_cb_map_reg(struct apple_dcp *dcp,
@@ -1273,6 +1276,8 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 
 	dcp->during_modeset = true;
 
+	dcp->pixel_clock = (u64)mode->mode.clock * 1000;
+
 	dcp_set_digital_out_mode(dcp, false, &dcp->mode,
 				 complete_set_digital_out_mode, cookie);
 
@@ -1289,9 +1294,11 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	dev_info(dcp->dev, "set_digital_out_mode finished:%d\n", ret);
 
 	if (ret == 0) {
+		dcp->pixel_clock = 0;
 		dev_info(dcp->dev, "set_digital_out_mode timed out\n");
 		return -EIO;
 	} else if (ret < 0) {
+		dcp->pixel_clock = 0;
 		dev_info(dcp->dev,
 			 "waiting on set_digital_out_mode failed:%d\n", ret);
 		return -EIO;
